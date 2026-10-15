@@ -2,23 +2,33 @@
 import { CampaignStudio } from "@/components/CampaignStudio";
 import { CompanyPanel } from "@/components/CompanyPanel";
 import { HeadlineLab } from "@/components/HeadlineLab";
+import { Icon, type IconName } from "@/components/icons";
+import { ModelSelect } from "@/components/ModelSelect";
 import { Simulator, type SimConfig } from "@/components/Simulator";
 import { Empty, Progress } from "@/components/ui";
 import { loadJSON, saveJSON } from "@/lib/client";
-import { transport, type ResultMode, type Status } from "@/lib/transport";
 import { COUNTRIES, countryInfo } from "@/lib/countries";
-import { DEFAULT_MODEL, MODELS, isModelId, modelInfo } from "@/lib/models";
+import { DEFAULT_ANALYSIS_MODEL, DEFAULT_CAMPAIGN_MODEL, isModelId, modelInfo } from "@/lib/models";
 import { PLATFORMS, REDDIT_OBJECTIVE_TO_GOAL } from "@/lib/platforms";
 import type { CampaignBrief, CampaignConcept, CampaignPlan, CompanyIntel, Source } from "@/lib/schemas";
+import { transport, type ResultMode, type Status } from "@/lib/transport";
 import { useEffect, useRef, useState } from "react";
 
 type Tab = "intel" | "studio" | "sim" | "lab";
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: "intel", label: "Intelligence", icon: "🔎" },
-  { id: "studio", label: "Studio campagne", icon: "✨" },
-  { id: "sim", label: "Simulateur", icon: "📈" },
-  { id: "lab", label: "Headline Lab", icon: "🧪" },
+
+/** Parcours guidé : chaque étape reste accessible directement. */
+const STEPS: { id: Exclude<Tab, "lab">; label: string; icon: IconName }[] = [
+  { id: "intel", label: "Analyser", icon: "search" },
+  { id: "studio", label: "Campagnes", icon: "sparkles" },
+  { id: "sim", label: "Simuler", icon: "chart" },
 ];
+
+const TOOLS: { id: Tab; label: string; icon: IconName; text: string }[] = [
+  { id: "studio", label: "Studio campagne", icon: "sparkles", text: "Un besoin → 3 concepts, annonces et ciblage" },
+  { id: "sim", label: "Simulateur", icon: "chart", text: "Budget → impressions, clics, conversions" },
+  { id: "lab", label: "Headline Lab", icon: "type", text: "Tester un titre avant de le publier" },
+];
+
 const EXAMPLES = ["Notion", "Duolingo", "Back Market", "Liquid Death", "Revolut", "Ubisoft"];
 
 interface Analysis {
@@ -30,6 +40,13 @@ interface Analysis {
   country?: string;
 }
 
+interface Settings {
+  analysisModel: string;
+  campaignModel: string;
+  country: string;
+}
+
+const DEFAULT_SETTINGS: Settings = { analysisModel: DEFAULT_ANALYSIS_MODEL, campaignModel: DEFAULT_CAMPAIGN_MODEL, country: "" };
 const DEFAULT_SIM: SimConfig = { goal: "traffic", monthlyBudget: 3000, durationDays: 30, creativeQuality: 1, conversionValue: 0, communities: [] };
 const DEFAULT_BRIEF: CampaignBrief = { brief: "", objective: "auto", monthlyBudget: 3000, tone: "Authentique & transparent", geo: "France, français" };
 
@@ -46,21 +63,28 @@ export default function Home() {
   const [brief, setBrief] = useState<CampaignBrief>(DEFAULT_BRIEF);
   const [plan, setPlan] = useState<{ data: CampaignPlan; mode: ResultMode } | null>(null);
   const [sim, setSim] = useState<SimConfig>(DEFAULT_SIM);
+  const [simVisited, setSimVisited] = useState(false);
   const [status, setStatus] = useState<Status | null>(null);
   const [forceDemo, setForceDemo] = useState(false);
-  const [model, setModel] = useState<string>(DEFAULT_MODEL);
-  const [country, setCountry] = useState<string>("");
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [theme, setTheme] = useState<"light" | "dark" | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     transport().status().then(setStatus);
     setHistory(loadJSON<Analysis[]>("rp-history", []));
-    const settings = loadJSON<{ model?: string; country?: string }>("rp-settings", {});
-    if (isModelId(settings.model)) setModel(settings.model);
-    if (settings.country !== undefined) setCountry(countryInfo(settings.country).code);
-    setTheme((document.documentElement.dataset.theme as "light" | "dark") ?? null);
+    const saved = loadJSON<Partial<Settings>>("rp-settings-v2", {});
+    setSettings({
+      analysisModel: isModelId(saved.analysisModel) ? saved.analysisModel : DEFAULT_ANALYSIS_MODEL,
+      campaignModel: isModelId(saved.campaignModel) ? saved.campaignModel : DEFAULT_CAMPAIGN_MODEL,
+      country: countryInfo(saved.country).code,
+    });
+    setTheme((document.documentElement.dataset.theme as "light" | "dark" | undefined) ?? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
   }, []);
+
+  useEffect(() => {
+    if (tab === "sim") setSimVisited(true);
+  }, [tab]);
 
   function toggleTheme() {
     const current = theme ?? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
@@ -72,11 +96,15 @@ export default function Home() {
     } catch {}
   }
 
-  function updateSettings(patch: { model?: string; country?: string }) {
-    const next = { model, country, ...patch };
-    setModel(next.model);
-    setCountry(next.country);
-    saveJSON("rp-settings", next);
+  function updateSettings(patch: Partial<Settings>) {
+    const next = { ...settings, ...patch };
+    setSettings(next);
+    saveJSON("rp-settings-v2", next);
+  }
+
+  function go(next: Tab) {
+    setTab(next);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function applyAnalysis(a: Analysis) {
@@ -96,6 +124,7 @@ export default function Home() {
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
+    const { analysisModel: model, country } = settings;
     setQuery(company);
     setTab("intel");
     setLoading(true);
@@ -129,7 +158,7 @@ export default function Home() {
 
   function goCampaign(seed?: string) {
     if (seed) setBrief((b) => ({ ...b, brief: seed }));
-    setTab("studio");
+    go("studio");
   }
 
   function simulateConcept(c: CampaignConcept, budget: number) {
@@ -145,22 +174,31 @@ export default function Home() {
         return { name: n, members: k ? (k.verifiedMembers ?? k.estimatedMembers) : 150_000, relevance: k?.relevance ?? 75 };
       }),
     }));
-    setTab("sim");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    go("sim");
   }
 
   const intel = analysis?.intel ?? null;
   const isDemo = !status?.live || forceDemo;
+  const done: Record<Exclude<Tab, "lab">, boolean> = { intel: !!intel, studio: !!plan, sim: simVisited };
+  const stepHint: Record<Exclude<Tab, "lab">, string> = {
+    intel: intel ? intel.name : "Une entreprise",
+    studio: plan ? `${plan.data.concepts.length} concepts` : "Un besoin",
+    sim: sim.label ?? "Un budget",
+  };
 
   return (
     <div className="mx-auto max-w-7xl px-4 pb-20 sm:px-6">
       {/* En-tête */}
       <header className="flex flex-wrap items-center justify-between gap-3 py-4">
         <div className="flex items-center gap-2.5">
-          <div className="grid size-9 place-items-center rounded-xl bg-accent text-lg font-black text-white">R</div>
+          <div className="grid size-9 place-items-center rounded-lg bg-accent text-white">
+            <Icon name="target" size={20} strokeWidth={2.2} />
+          </div>
           <div className="leading-tight">
-            <div className="text-lg font-extrabold tracking-tight">RedPower</div>
-            <div className="text-[11px] text-muted">Simulateur de campagnes Ads</div>
+            <div className="text-lg font-extrabold tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+              RedPower
+            </div>
+            <div className="label !text-[9.5px]">Reddit Ads planner</div>
           </div>
         </div>
         <nav className="order-3 flex w-full gap-1.5 overflow-x-auto sm:order-none sm:w-auto" aria-label="Plateformes">
@@ -176,27 +214,28 @@ export default function Home() {
           <button
             className="chip text-xs"
             onClick={() => status?.live && setForceDemo((v) => !v)}
-            title={status?.live ? `${status.detail}. Cliquer pour basculer en démo.` : "Ajoutez ANTHROPIC_API_KEY dans .env.local pour activer l'analyse temps réel"}
+            title={status?.live ? `${status.detail}. Cliquer pour basculer en démo.` : "Claude n'est pas disponible : données de démonstration"}
           >
             <span className={`size-2 rounded-full ${isDemo ? "bg-warning" : "bg-good"}`} />
             {isDemo ? "Mode démo" : status?.label}
           </button>
-          <button className="chip text-xs" onClick={toggleTheme} aria-label="Changer de thème">
-            {theme === "dark" ? "☀" : "☾"}
+          <button className="chip !px-2 text-xs" onClick={toggleTheme} aria-label="Changer de thème">
+            <Icon name={theme === "dark" ? "sun" : "moon"} size={14} />
           </button>
         </div>
       </header>
 
       {/* Recherche */}
-      <section className={`card relative overflow-hidden ${intel || loading ? "p-4" : "px-5 py-12 sm:px-10 sm:py-16"}`}>
+      <section className={`card relative overflow-hidden ${intel || loading ? "p-4" : "px-5 py-10 sm:px-10 sm:py-14"}`}>
         {!intel && !loading && (
           <div className="mb-6 max-w-2xl">
-            <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
-              Tapez une entreprise.<br />
+            <h1 className="text-3xl font-extrabold sm:text-[42px] sm:leading-[1.05]">
+              Tapez une entreprise.
+              <br />
               <span className="text-accent">Obtenez sa campagne Reddit.</span>
             </h1>
-            <p className="mt-3 text-ink-2">
-              Ce qu'elle représente, son budget potentiel, ses objectifs du moment, ses keywords et ses meilleures communautés — puis des campagnes prêtes à lancer et leur simulation de performance.
+            <p className="mt-3 max-w-xl text-ink-2">
+              Ce qu'elle représente, son budget potentiel, ses objectifs du moment, ses keywords et ses meilleures communautés. Puis des campagnes prêtes à lancer et leur simulation de performance.
             </p>
           </div>
         )}
@@ -207,42 +246,37 @@ export default function Home() {
             analyze();
           }}
         >
-          <input className="input !rounded-full !px-5 !py-3 text-base" placeholder="Nom d'une entreprise : Notion, Alan, Michel et Augustin…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Entreprise" />
+          <div className="relative flex-1">
+            <Icon name="search" size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted" />
+            <input className="input !py-3 !pl-11 text-base" placeholder="Nom d'une entreprise : Notion, Alan, Michel et Augustin…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Entreprise" />
+          </div>
           <button className="btn btn-primary justify-center !px-6 !py-3" disabled={loading || !query.trim()}>
             {loading ? "Analyse…" : "Analyser"}
           </button>
         </form>
-        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:max-w-2xl">
-          <label className="flex items-center gap-2 text-sm">
-            <span className="label w-20 shrink-0">Modèle</span>
-            <select id="rp-model" className="input !py-1.5 text-sm" value={model} onChange={(e) => updateSettings({ model: e.target.value })} >
-              {MODELS.map((m) => (
-                <option key={m.id} value={m.id}>
-                  Claude {m.label}
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:max-w-3xl">
+          <ModelSelect id="rp-model" value={settings.analysisModel} onChange={(v) => updateSettings({ analysisModel: v })} defaultId={DEFAULT_ANALYSIS_MODEL} label="Modèle pour l'analyse" />
+          <label className="block text-sm" htmlFor="rp-country">
+            <span className="label">Pays visé</span>
+            <select id="rp-country" className="input mt-1 !py-1.5 text-sm" value={settings.country} onChange={(e) => updateSettings({ country: e.target.value })}>
+              {COUNTRIES.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.label}
                 </option>
               ))}
             </select>
+            <span className="mt-1 block text-xs text-muted">
+              {settings.country ? `Ajoute un encart sur la perception de la marque en ${countryInfo(settings.country).label}.` : "Choisissez un pays pour voir comment la marque y est perçue."}
+            </span>
           </label>
-          <label className="flex items-center gap-2 text-sm">
-            <span className="label w-20 shrink-0">Pays visé</span>
-            <select id="rp-country" className="input !py-1.5 text-sm" value={country} onChange={(e) => updateSettings({ country: e.target.value })}>
-              {COUNTRIES.map((c) => (
-                <option key={c.code} value={c.code}>{c.label}</option>
-              ))}
-            </select>
-          </label>
-          <p className="text-xs text-muted sm:col-span-2">
-            {modelInfo(model).hint}
-            {country ? ` · la fiche inclura un encart sur la perception de la marque en ${countryInfo(country).label}.` : "."}
-          </p>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-muted">{history.length ? "Récents :" : "Essayez :"}</span>
+          <span className="label mr-1">{history.length ? "Récents" : "Essayez"}</span>
           {history.length
             ? history.map((h) => (
                 <button
                   key={`${h.intel.name}-${h.country ?? ""}`}
-                  className="chip text-xs hover:border-accent"
+                  className="chip text-xs"
                   onClick={() => {
                     applyAnalysis(h);
                     setQuery(h.intel.name);
@@ -250,65 +284,146 @@ export default function Home() {
                   }}
                 >
                   {h.intel.name}
-                  {h.country ? <span className="text-muted">· {h.country}</span> : null}
+                  {h.country ? <span className="num text-[11px] text-muted">{h.country}</span> : null}
                 </button>
               ))
             : EXAMPLES.map((n) => (
-                <button key={n} className="chip text-xs hover:border-accent" onClick={() => analyze(n)}>
+                <button key={n} className="chip text-xs" onClick={() => analyze(n)}>
                   {n}
                 </button>
               ))}
         </div>
-        {isDemo && !intel && !loading && status && (
-          <p className="mt-4 text-xs text-muted">
-            {status?.demoHint ?? (
-              <>
-                Mode démo actif : données simulées. Ajoutez <code className="rounded bg-surface-2 px-1">ANTHROPIC_API_KEY</code> dans <code className="rounded bg-surface-2 px-1">.env.local</code> pour l'analyse en temps réel avec recherche web.
-              </>
-            )}
-          </p>
+        {isDemo && !intel && !loading && status && <p className="mt-4 text-xs text-muted">{status.demoHint ?? "Mode démo actif : données simulées."}</p>}
+
+        {!intel && !loading && (
+          <div className="mt-8 border-t border-line pt-5">
+            <div className="label mb-3">Ou ouvrez directement un outil</div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {TOOLS.map((t) => (
+                <button key={t.id} onClick={() => go(t.id)} className="group flex items-start gap-3 rounded-lg border border-line p-3 text-left transition hover:border-accent">
+                  <span className="grid size-8 shrink-0 place-items-center rounded-md bg-surface-2 text-ink-2 group-hover:bg-accent-soft group-hover:text-accent-ink">
+                    <Icon name={t.icon} size={16} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">{t.label}</span>
+                    <span className="block text-xs text-muted">{t.text}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </section>
 
-      {/* Onglets */}
-      <nav className="sticky top-[env(safe-area-inset-top,0px)] z-20 -mx-4 mt-4 flex gap-1 overflow-x-auto bg-bg/90 px-4 py-2 backdrop-blur sm:mx-0 sm:px-0" aria-label="Sections">
-        {TABS.map((t) => (
+      {/* Parcours */}
+      <nav className="sticky top-[env(safe-area-inset-top,0px)] z-20 -mx-4 mt-4 bg-bg/92 px-4 py-2 backdrop-blur sm:mx-0 sm:px-0" aria-label="Parcours">
+        <div className="flex items-center gap-2 overflow-x-auto">
+          <ol className="flex shrink-0 items-center">
+            {STEPS.map((s, i) => {
+              const active = tab === s.id;
+              return (
+                <li key={s.id} className="flex items-center">
+                  {i > 0 && <span className={`mx-1 h-px w-4 sm:w-8 ${done[STEPS[i - 1].id] ? "bg-accent" : "bg-line-strong"}`} aria-hidden />}
+                  <button
+                    onClick={() => go(s.id)}
+                    aria-current={active ? "step" : undefined}
+                    className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left transition ${active ? "bg-surface shadow-[0_0_0_1px_var(--border-strong)]" : "hover:bg-surface"}`}
+                  >
+                    <span
+                      className={`num grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-semibold ${
+                        done[s.id] ? "bg-accent text-white" : active ? "bg-ink text-bg" : "border border-line-strong text-muted"
+                      }`}
+                    >
+                      {done[s.id] ? <Icon name="check" size={13} strokeWidth={2.6} /> : i + 1}
+                    </span>
+                    <span className="leading-tight">
+                      <span className={`block text-sm font-semibold ${active ? "text-ink" : "text-ink-2"}`}>{s.label}</span>
+                      <span className="hidden max-w-[150px] truncate text-[11px] text-muted sm:block">{stepHint[s.id]}</span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+          <span className="mx-1 h-6 w-px shrink-0 bg-line-strong" aria-hidden />
           <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`btn shrink-0 !rounded-full text-sm ${tab === t.id ? "bg-ink text-bg" : "text-ink-2 hover:bg-surface-2"}`}
-            aria-current={tab === t.id}
+            onClick={() => go("lab")}
+            aria-current={tab === "lab" ? "page" : undefined}
+            className={`flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm font-semibold transition ${tab === "lab" ? "bg-surface text-ink shadow-[0_0_0_1px_var(--border-strong)]" : "text-ink-2 hover:bg-surface"}`}
           >
-            <span aria-hidden>{t.icon}</span> {t.label}
+            <Icon name="type" size={15} /> Headline Lab
           </button>
-        ))}
-        {analysis && (
-          <span className="ml-auto hidden items-center gap-1.5 self-center text-xs text-muted md:flex">
-            {analysis.mode === "demo" ? "Données démo" : analysis.mode === "knowledge" ? "Analyse Claude" : "Analyse live"}
-            {analysis.mode !== "demo" && analysis.model ? ` ${modelInfo(analysis.model).label}` : ""}
-            {analysis.country ? ` · ${countryInfo(analysis.country).label}` : ""} · {new Date(analysis.at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
-          </span>
-        )}
+          {analysis && (
+            <span className="ml-auto hidden shrink-0 text-right text-[11px] leading-tight text-muted lg:block">
+              {analysis.mode === "demo" ? "Données démo" : analysis.mode === "knowledge" ? "Analyse Claude" : "Analyse live"}
+              {analysis.mode !== "demo" && analysis.model ? ` ${modelInfo(analysis.model).label}` : ""}
+              {analysis.country ? ` · ${countryInfo(analysis.country).label}` : ""}
+              <br />
+              {new Date(analysis.at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
+            </span>
+          )}
+        </div>
       </nav>
 
       <main className="mt-3">
-        {error && <div className="card mb-4 border-critical/40 p-4 text-sm text-critical">✕ {error}</div>}
+        {error && (
+          <div className="card mb-4 flex gap-2 border-critical/40 p-4 text-sm text-critical">
+            <Icon name="x" size={16} className="mt-0.5 shrink-0" /> {error}
+          </div>
+        )}
 
         {tab === "intel" &&
           (loading ? (
-            <Progress stages={stages.length ? stages : ["Connexion…"]} sources={liveSources} />
+            <Progress
+              stages={stages.length ? stages : ["Connexion…"]}
+              sources={liveSources}
+              onStop={() => abortRef.current?.abort()}
+              hint={isDemo ? undefined : `Claude ${modelInfo(settings.analysisModel).label} : comptez ${modelInfo(settings.analysisModel).eta}.`}
+            />
           ) : intel ? (
-            <CompanyPanel intel={intel} mode={analysis!.mode} sources={analysis!.sources} selected={selected} onToggleSub={toggleSub} onGoCampaign={goCampaign} />
+            <>
+              <CompanyPanel intel={intel} mode={analysis!.mode} sources={analysis!.sources} selected={selected} onToggleSub={toggleSub} onGoCampaign={goCampaign} />
+              <NextStep text="Étape suivante : transformer cette analyse en campagnes." cta="Créer les campagnes" onClick={() => go("studio")} />
+            </>
           ) : (
             <Empty title="Commencez par une entreprise">
-              La fiche s'affichera ici : identité, budget estimé, objectifs actuels, actualités, keywords par intention et communautés Reddit classées par pertinence.
+              La fiche s'affichera ici : résumé, identité, budget estimé, objectifs actuels, actualités, keywords par intention et communautés Reddit classées par pertinence.
             </Empty>
           ))}
 
-        {tab === "studio" && <CampaignStudio intel={intel} brief={brief} setBrief={setBrief} plan={plan} setPlan={setPlan} onSimulate={simulateConcept} opts={{ forceDemo, model, country: analysis?.country ?? country }} />}
-        {tab === "sim" && <Simulator config={sim} setConfig={setSim} />}
+        {tab === "studio" && (
+          <CampaignStudio
+            intel={intel}
+            brief={brief}
+            setBrief={setBrief}
+            plan={plan}
+            setPlan={setPlan}
+            onSimulate={simulateConcept}
+            opts={{ forceDemo, country: analysis?.country ?? settings.country }}
+            model={settings.campaignModel}
+            setModel={(v) => updateSettings({ campaignModel: v })}
+            onNext={() => go("sim")}
+          />
+        )}
+        {tab === "sim" && (
+          <>
+            <Simulator config={sim} setConfig={setSim} />
+            <NextStep text="Pour aller plus loin : vérifier que vos titres passent le « vibe check » Reddit." cta="Ouvrir le Headline Lab" onClick={() => go("lab")} />
+          </>
+        )}
         {tab === "lab" && <HeadlineLab intel={intel} />}
       </main>
+    </div>
+  );
+}
+
+function NextStep({ text, cta, onClick }: { text: string; cta: string; onClick: () => void }) {
+  return (
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-line-strong px-4 py-3">
+      <span className="text-sm text-ink-2">{text}</span>
+      <button className="btn btn-primary !py-1.5 text-sm" onClick={onClick}>
+        {cta} <Icon name="arrowRight" size={14} />
+      </button>
     </div>
   );
 }

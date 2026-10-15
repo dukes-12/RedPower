@@ -9,7 +9,8 @@ Règles :
 - 8 à 12 subreddits réels et actifs (pas de communautés inventées), triés par pertinence, mélangeant grandes communautés et niches.
 - 15 à 20 keywords couvrant les 4 intentions (découverte, considération, achat, problème), en anglais ET en français si pertinent.
 - Budget Reddit recommandé réaliste pour un test de 1 à 3 mois, cohérent avec la taille de l'entreprise (minimum 1500 USD/mois).
-- quickWins : idées concrètes, créatives et spécifiques à cette marque (AMA du fondateur, thread de feedback, offre réservée aux redditors...).`;
+- quickWins : idées concrètes, créatives et spécifiques à cette marque (AMA du fondateur, thread de feedback, offre réservée aux redditors...).
+- keyTakeaways : exactement 3 constats qui changent la façon de faire de la pub pour cette marque sur Reddit (pas de généralités) ; nextAction : la toute première chose à faire.`;
 
 export const CAMPAIGN_RULES = `Tu es directeur de création et media buyer expert Reddit Ads. Tu écris des campagnes qui ne ressemblent pas à des pubs :
 Reddit récompense la transparence, l'humour, l'autodérision, la spécificité, et punit le jargon marketing, le hype et le clickbait.

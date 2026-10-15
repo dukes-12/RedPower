@@ -1,6 +1,7 @@
 "use client";
 import { scoreHeadline } from "@/lib/headlineScore";
 import { useMemo } from "react";
+import { Icon } from "./icons";
 
 export function VibeBadge({ headline }: { headline: string }) {
   const { score, grade } = useMemo(() => scoreHeadline(headline), [headline]);
@@ -23,7 +24,7 @@ export function VibeDetails({ headline }: { headline: string }) {
       <ul className="space-y-2">
         {checks.map((c) => (
           <li key={c.label} className="flex gap-2 text-sm">
-            <span aria-label={c.ok ? "réussi" : "à améliorer"} className={c.ok ? "text-good" : "text-warning"}>{c.ok ? "✓" : "!"}</span>
+            <span aria-label={c.ok ? "réussi" : "à améliorer"} className={`mt-0.5 shrink-0 ${c.ok ? "text-good" : "text-warning"}`}><Icon name={c.ok ? "check" : "alert"} size={15} /></span>
             <span>
               <span className={c.ok ? "text-ink" : "text-ink"}>{c.label}</span>
               {!c.ok && c.tip && <span className="block text-xs text-muted">{c.tip}</span>}

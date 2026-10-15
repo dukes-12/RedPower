@@ -1,31 +1,8 @@
 import { z } from "zod";
 
-/** Objectifs de campagne Reddit Ads (noms officiels de l'interface Reddit). */
-export const REDDIT_OBJECTIVES = [
-  "Brand Awareness & Reach",
-  "Traffic",
-  "Conversions",
-  "Video Views",
-  "App Installs",
-  "Lead Generation",
-  "Catalog Sales",
-] as const;
-export type RedditObjective = (typeof REDDIT_OBJECTIVES)[number];
+import { REDDIT_CTAS, REDDIT_OBJECTIVES, type RedditObjective } from "./constants";
 
-export const REDDIT_CTAS = [
-  "Learn More",
-  "Sign Up",
-  "Shop Now",
-  "Install",
-  "Download",
-  "Get a Quote",
-  "Contact Us",
-  "Apply Now",
-  "Watch Now",
-  "Play Now",
-  "View More",
-  "Get Showtimes",
-] as const;
+export { REDDIT_CTAS, REDDIT_OBJECTIVES, type RedditObjective } from "./constants";
 
 const Confidence = z.enum(["haute", "moyenne", "faible"]);
 
@@ -124,6 +101,8 @@ export const CompanyIntelSchema = z.object({
     watchouts: z.array(z.string()),
   }),
   quickWins: z.array(z.string()).describe("3 à 5 idées d'actions Reddit immédiates et créatives"),
+  keyTakeaways: z.array(z.string()).describe("En bref : exactement 3 constats clés pour un media buyer, une phrase courte chacun"),
+  nextAction: z.string().describe("L'action recommandée en premier, une phrase à l'impératif"),
   countryInsight: CountryInsightSchema.nullable().describe("Encart pays : null si aucun pays visé n'est demandé"),
 });
 export type CompanyIntel = Omit<z.infer<typeof CompanyIntelSchema>, "subreddits"> & {

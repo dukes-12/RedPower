@@ -3,11 +3,14 @@
  * - Analyse et campagnes : capacité `sample` (Claude, sur le compte du visiteur), sans recherche web.
  * - Repli automatique sur le mode démo si Claude n'est pas disponible ou refusé.
  */
-import { z } from "zod";
 import { demoCampaign, demoCompany } from "@/lib/demo";
 import { modelInfo } from "@/lib/models";
 import { CAMPAIGN_RULES, COMPANY_RULES, campaignPrompt, countryRules } from "@/lib/prompts";
-import { CampaignPlanSchema, CompanyIntelSchema, type CampaignPlan, type CompanyIntel } from "@/lib/schemas";
+import { conform, type JsonSchema } from "@/lib/jsonShape";
+import type { CampaignPlan, CompanyIntel } from "@/lib/schemas";
+
+/** JSON Schemas calculés au build (voir scripts/build-artifact.mjs) : zod n'est pas embarqué dans la page. */
+declare const __RP_SCHEMAS__: { company: JsonSchema; campaign: JsonSchema };
 import type { Handlers, Result, Transport } from "@/lib/transport";
 
 interface SampleFn {
@@ -48,12 +51,12 @@ function toError(e: unknown): Error {
 }
 
 /** Valide la réponse ; complète les champs manquants par la structure démo plutôt que d'échouer. */
-function coerce<T>(schema: z.ZodType<T>, raw: unknown, fallback: T): T {
-  const direct = schema.safeParse(raw);
-  if (direct.success) return direct.data;
-  const merged = { ...(fallback as object), ...(raw && typeof raw === "object" ? raw : {}) };
-  const second = schema.safeParse(merged);
-  if (second.success) return second.data;
+function coerce<T>(schema: JsonSchema, raw: unknown, fallback: T): T {
+  const direct = conform(schema, raw);
+  if (direct.errors.length === 0) return direct.value as T;
+  const merged = { ...(fallback as object), ...((direct.value && typeof direct.value === "object" ? direct.value : {}) as object) };
+  const second = conform(schema, merged);
+  if (second.errors.length === 0) return second.value as T;
   throw new Error("Réponse de Claude incomplète. Réessayez.");
 }
 
@@ -80,7 +83,7 @@ function modelOptions(id: string) {
   return { model: m.id, modelTier: m.tier };
 }
 
-const schemaText = (s: z.ZodType) => JSON.stringify(z.toJSONSchema(s));
+const schemaText = (s: JsonSchema) => JSON.stringify(s);
 
 export const claudeTransport: Transport = {
   async status() {
@@ -116,11 +119,11 @@ ${COMPANY_RULES.replace("Tu convertis des notes de recherche en fiche entreprise
 ${countryRules(opts.country)}
 
 Réponds uniquement avec un objet JSON conforme à ce JSON Schema :
-${schemaText(CompanyIntelSchema)}`;
+${schemaText(__RP_SCHEMAS__.company)}`;
     try {
       const raw = await sample.json(prompt, { onText: progress(h, "Claude rédige la fiche"), signal, ...modelOptions(opts.model) });
       h.onStage?.("Vérification de la fiche…");
-      return { data: coerce(CompanyIntelSchema, raw, demoCompany(company, opts.country)) as CompanyIntel, mode: "knowledge", sources: [] };
+      return { data: coerce(__RP_SCHEMAS__.company, raw, demoCompany(company, opts.country)) as CompanyIntel, mode: "knowledge", sources: [] };
     } catch (e) {
       if ((e as SampleError)?.code === "cancelled") throw Object.assign(new Error("cancelled"), { name: "AbortError" });
       throw toError(e);
@@ -139,10 +142,10 @@ ${schemaText(CompanyIntelSchema)}`;
 ${campaignPrompt(brief, intel)}
 
 Réponds uniquement avec un objet JSON conforme à ce JSON Schema :
-${schemaText(CampaignPlanSchema)}`;
+${schemaText(__RP_SCHEMAS__.campaign)}`;
     try {
       const raw = await sample.json(prompt, { onText: progress(h, "Claude écrit les campagnes"), ...modelOptions(opts.model) });
-      return { data: coerce(CampaignPlanSchema, raw, demoCampaign(brief, intel)), mode: "knowledge", sources: [] };
+      return { data: coerce(__RP_SCHEMAS__.campaign, raw, demoCampaign(brief, intel)), mode: "knowledge", sources: [] };
     } catch (e) {
       throw toError(e);
     }

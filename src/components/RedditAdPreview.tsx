@@ -1,5 +1,6 @@
 "use client";
 import type { Ad } from "@/lib/schemas";
+import { Icon } from "./icons";
 
 /** Maquette d'un post sponsorisé Reddit (feed mobile/desktop). */
 export function RedditAdPreview({ ad, brand, website }: { ad: Pick<Ad, "headline" | "body" | "cta" | "format" | "visualIdea">; brand: string; website?: string }) {
@@ -14,7 +15,7 @@ export function RedditAdPreview({ ad, brand, website }: { ad: Pick<Ad, "headline
           <div className="text-[13px] font-semibold">u/{handle}</div>
           <div className="text-[11px] text-muted">Promoted</div>
         </div>
-        <span className="ml-auto text-muted">•••</span>
+        <span className="ml-auto text-muted" aria-hidden>···</span>
       </div>
       <div className="px-3 pt-2 text-[15px] font-semibold leading-snug">
         {truncated ? ad.headline.slice(0, 117) + "…" : ad.headline}
@@ -33,9 +34,9 @@ export function RedditAdPreview({ ad, brand, website }: { ad: Pick<Ad, "headline
         <span className="rounded-full bg-[#0045ac] px-3 py-1 text-xs font-semibold text-white">{ad.cta}</span>
       </div>
       <div className="flex items-center gap-4 px-3 py-2.5 text-xs text-muted">
-        <span>⬆ Vote ⬇</span>
-        <span>💬 Commentaires</span>
-        <span>↗ Partager</span>
+        <span className="inline-flex items-center gap-1"><Icon name="up" size={13} /> Vote <Icon name="down" size={13} /></span>
+        <span className="inline-flex items-center gap-1"><Icon name="message" size={13} /> Commentaires</span>
+        <span className="inline-flex items-center gap-1"><Icon name="share" size={13} /> Partager</span>
       </div>
     </div>
   );

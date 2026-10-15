@@ -29,6 +29,23 @@ const reactGlobals = {
   },
 };
 
+// JSON Schemas des réponses, calculés ici pour ne pas embarquer zod dans la page.
+const schemaBundle = await build({
+  stdin: {
+    contents: `import { z } from "zod"; import { CompanyIntelSchema, CampaignPlanSchema } from "./src/lib/schemas";
+      export default { company: z.toJSONSchema(CompanyIntelSchema), campaign: z.toJSONSchema(CampaignPlanSchema) };`,
+    resolveDir: root,
+    loader: "ts",
+  },
+  bundle: true,
+  write: false,
+  platform: "node",
+  format: "esm",
+  logLevel: "warning",
+});
+const schemas = (await import(`data:text/javascript;base64,${Buffer.from(schemaBundle.outputFiles[0].text).toString("base64")}`)).default;
+for (const s of Object.values(schemas)) delete s.$schema;
+
 const js = await build({
   entryPoints: [path.join(root, "src/artifact/main.tsx")],
   bundle: true,
@@ -38,7 +55,7 @@ const js = await build({
   target: "es2020",
   jsx: "automatic",
   alias: { "@": path.join(root, "src") },
-  define: { "process.env.NODE_ENV": '"production"' },
+  define: { "process.env.NODE_ENV": '"production"', __RP_SCHEMAS__: JSON.stringify(schemas) },
   plugins: [reactGlobals],
   logLevel: "warning",
 });
@@ -49,7 +66,7 @@ const css = await postcss([tailwind({ base: root, optimize: { minify: true } })]
 const html = `<title>RedPower</title>
 <meta name="description" content="Analyse d'entreprise, communautés Reddit, campagnes et simulation de performance.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <style>${css.css}</style>
 <div id="root"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>

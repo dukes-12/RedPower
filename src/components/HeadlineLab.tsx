@@ -1,6 +1,8 @@
 "use client";
-import { REDDIT_CTAS, type CompanyIntel } from "@/lib/schemas";
+import { REDDIT_CTAS } from "@/lib/constants";
+import type { CompanyIntel } from "@/lib/schemas";
 import { useState } from "react";
+import { Icon } from "./icons";
 import { RedditAdPreview } from "./RedditAdPreview";
 import { Section } from "./ui";
 import { VibeBadge, VibeDetails } from "./VibeCheck";
@@ -44,7 +46,7 @@ export function HeadlineLab({ intel }: { intel: CompanyIntel | null }) {
             <div>
               <div className="label mb-2">Variantes rapides</div>
               <button className="btn btn-ghost w-full justify-center text-sm" onClick={() => setVariants(makeVariants(headline, brand))}>
-                🎲 Décliner ce headline
+                <Icon name="shuffle" size={15} /> Décliner ce headline
               </button>
               <ul className="mt-3 space-y-2">
                 {variants.map((v) => (
@@ -66,11 +68,11 @@ export function HeadlineLab({ intel }: { intel: CompanyIntel | null }) {
           <div className="space-y-3">
             {BEFORE_AFTER.map(([bad, good]) => (
               <div key={bad} className="grid gap-2 sm:grid-cols-2">
-                <button onClick={() => setHeadline(bad)} className="rounded-xl border border-line p-3 text-left text-sm">
+                <button onClick={() => setHeadline(bad)} className="rounded-lg border border-line p-3 text-left text-sm hover:border-line-strong">
                   <div className="mb-1 flex justify-between"><span className="label">Avant</span><VibeBadge headline={bad} /></div>
                   {bad}
                 </button>
-                <button onClick={() => setHeadline(good)} className="rounded-xl border border-line p-3 text-left text-sm">
+                <button onClick={() => setHeadline(good)} className="rounded-lg border border-line p-3 text-left text-sm hover:border-line-strong">
                   <div className="mb-1 flex justify-between"><span className="label">Après</span><VibeBadge headline={good} /></div>
                   {good}
                 </button>
@@ -79,7 +81,7 @@ export function HeadlineLab({ intel }: { intel: CompanyIntel | null }) {
           </div>
         </Section>
       </div>
-      <div className="lg:sticky lg:top-4 lg:self-start">
+      <div className="lg:sticky lg:top-20 lg:self-start">
         <div className="label mb-2">Aperçu feed</div>
         <RedditAdPreview ad={{ headline, body, cta, format: "Image", visualIdea: "Votre visuel ici" }} brand={brand} website={intel?.website} />
       </div>

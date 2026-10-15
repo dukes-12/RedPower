@@ -1,6 +1,10 @@
 "use client";
+import { DEFAULT_CAMPAIGN_MODEL, modelInfo } from "@/lib/models";
 import { transport, type ResultMode } from "@/lib/transport";
-import { REDDIT_OBJECTIVES, type AnalysisOptions, type CampaignBrief, type CampaignConcept, type CampaignPlan, type CompanyIntel } from "@/lib/schemas";
+import { Icon } from "./icons";
+import { ModelSelect } from "./ModelSelect";
+import { REDDIT_OBJECTIVES } from "@/lib/constants";
+import type { AnalysisOptions, CampaignBrief, CampaignConcept, CampaignPlan, CompanyIntel } from "@/lib/schemas";
 import { fmtMoney } from "@/lib/simulator";
 import { useState } from "react";
 import { RedditAdPreview } from "./RedditAdPreview";
@@ -25,6 +29,9 @@ export function CampaignStudio({
   setPlan,
   onSimulate,
   opts,
+  model,
+  setModel,
+  onNext,
 }: {
   intel: CompanyIntel | null;
   brief: CampaignBrief;
@@ -32,7 +39,10 @@ export function CampaignStudio({
   plan: { data: CampaignPlan; mode: ResultMode } | null;
   setPlan: (p: { data: CampaignPlan; mode: ResultMode } | null) => void;
   onSimulate: (c: CampaignConcept, budget: number) => void;
-  opts: AnalysisOptions;
+  opts: Omit<AnalysisOptions, "model">;
+  model: string;
+  setModel: (m: string) => void;
+  onNext: () => void;
 }) {
   const [stages, setStages] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -43,7 +53,7 @@ export function CampaignStudio({
     setError(null);
     setStages([]);
     try {
-      const res = await transport().generateCampaign(brief, intel, opts, { onStage: (s) => setStages((p) => (p[p.length - 1] === s ? p : [...p, s])) });
+      const res = await transport().generateCampaign(brief, intel, { ...opts, model }, { onStage: (s) => setStages((p) => (p[p.length - 1] === s ? p : [...p, s])) });
       setPlan({ data: res.data, mode: res.mode });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
@@ -54,7 +64,7 @@ export function CampaignStudio({
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[380px_1fr]">
-      <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
+      <div className="space-y-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto lg:pb-2">
         <Section title="Votre besoin" subtitle={intel ? `Contexte : ${intel.name}` : "Analysez une entreprise pour un résultat plus précis"}>
           <textarea
             className="input min-h-32 resize-y text-sm"
@@ -99,20 +109,29 @@ export function CampaignStudio({
             ))}
           </div>
 
+          <div className="mt-4">
+            <ModelSelect id="rp-campaign-model" value={model} onChange={setModel} defaultId={DEFAULT_CAMPAIGN_MODEL} label="Modèle pour les campagnes" />
+          </div>
+
           <button className="btn btn-primary mt-5 w-full justify-center" disabled={loading || !brief.brief.trim()} onClick={generate}>
-            {loading ? "Génération…" : "✨ Générer les campagnes"}
+            <Icon name="sparkles" size={15} />
+            {loading ? "Génération…" : "Générer les campagnes"}
           </button>
-          {error && <p className="mt-2 text-sm text-critical">✕ {error}</p>}
+          {error && (
+            <p className="mt-2 flex gap-1.5 text-sm text-critical">
+              <Icon name="x" size={15} className="mt-0.5 shrink-0" /> {error}
+            </p>
+          )}
         </Section>
       </div>
 
       <div className="min-w-0 space-y-4">
-        {loading && <Progress stages={stages} />}
+        {loading && <Progress stages={stages} skeleton={false} hint={`Claude ${modelInfo(model).label} écrit 3 concepts et 9 annonces : comptez de 20 secondes à 2 minutes.`} />}
         {!loading && !plan && (
           <div className="card grid place-items-center px-6 py-20 text-center">
             <div className="max-w-md">
-              <div className="text-4xl">🧪</div>
-              <div className="mt-3 text-lg font-semibold">Décrivez un besoin, une envie ou une campagne</div>
+              <div className="mx-auto grid size-11 place-items-center rounded-lg bg-surface-2 text-ink-2"><Icon name="sparkles" size={20} /></div>
+              <div className="mt-3 text-lg font-bold" style={{ fontFamily: "var(--font-display)" }}>Décrivez un besoin, une envie ou une campagne</div>
               <p className="mt-1 text-sm text-ink-2">
                 Vous obtiendrez 3 concepts contrastés avec headlines natifs Reddit, ciblage, répartition budgétaire, test A/B et réponses aux commentaires.
               </p>
@@ -120,6 +139,14 @@ export function CampaignStudio({
           </div>
         )}
         {!loading && plan && <PlanView plan={plan.data} mode={plan.mode} intel={intel} budget={brief.monthlyBudget} onSimulate={onSimulate} />}
+        {!loading && plan && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-line-strong px-4 py-3">
+            <span className="text-sm text-ink-2">Étape suivante : estimer les performances de ces campagnes.</span>
+            <button className="btn btn-primary !py-1.5 text-sm" onClick={onNext}>
+              Simuler <Icon name="arrowRight" size={14} />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -135,7 +162,7 @@ function PlanView({ plan, mode, intel, budget, onSimulate }: { plan: CampaignPla
           <CopyButton text={toMarkdown(plan, brand, budget)} label="Exporter en Markdown" />
         </div>
         <p className="mt-2 text-[15px] leading-relaxed">{plan.strategySummary}</p>
-        <div className="mt-4 rounded-xl border-l-4 border-accent bg-accent-soft p-3 text-sm">
+        <div className="mt-4 rounded-lg bg-accent-soft p-3 text-sm">
           <span className="font-semibold">Insight : </span>
           {plan.insight}
         </div>
@@ -160,8 +187,8 @@ function PlanView({ plan, mode, intel, budget, onSimulate }: { plan: CampaignPla
           <ul className="space-y-3">
             {plan.commentReplies.map((r) => (
               <li key={r.likelyComment} className="text-sm">
-                <div className="rounded-lg bg-surface-2 px-3 py-2 text-ink-2">💬 {r.likelyComment}</div>
-                <div className="ml-6 mt-1 rounded-lg border border-line px-3 py-2">↳ {r.reply}</div>
+                <div className="flex gap-2 rounded-lg bg-surface-2 px-3 py-2 text-ink-2"><Icon name="message" size={15} className="mt-0.5 shrink-0" />{r.likelyComment}</div>
+                <div className="ml-6 mt-1 rounded-lg border border-line px-3 py-2"><span className="label mr-1.5">Marque</span>{r.reply}</div>
               </li>
             ))}
           </ul>
@@ -193,11 +220,11 @@ function ConceptCard({ concept: c, index, brand, website, budget, onSimulate }: 
           <h3 className="mt-1 text-xl font-bold">{c.name}</h3>
           <p className="mt-1 text-sm text-ink-2">{c.bigIdea}</p>
         </div>
-        <div className="text-right">
-          <div className="chip !border-accent text-xs font-semibold !text-accent-ink">{c.objective}</div>
-          <div className="tabular mt-2 text-sm font-semibold">{c.budgetSplitPercent} % · {fmtMoney(conceptBudget)}/mois</div>
-          <button className="btn btn-ghost mt-2 !px-3 !py-1 text-xs" onClick={() => onSimulate(c, conceptBudget)}>
-            📈 Simuler ce concept
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          <span className="chip !border-accent text-xs font-semibold !text-accent-ink">{c.objective}</span>
+          <span className="num text-sm font-semibold">{c.budgetSplitPercent} % · {fmtMoney(conceptBudget)}/mois</span>
+          <button className="btn btn-ghost !px-3 !py-1 text-xs" onClick={() => onSimulate(c, conceptBudget)}>
+            <Icon name="chart" size={13} /> Simuler ce concept
           </button>
         </div>
       </div>
@@ -208,7 +235,7 @@ function ConceptCard({ concept: c, index, brand, website, budget, onSimulate }: 
             <div className="label mb-2">Annonces</div>
             <div className="space-y-2">
               {c.ads.map((a, i) => (
-                <button key={i} onClick={() => setAdIdx(i)} className={`w-full rounded-xl border p-3 text-left transition ${i === adIdx ? "border-accent bg-accent-soft" : "border-line hover:bg-surface-2"}`}>
+                <button key={i} onClick={() => setAdIdx(i)} className={`w-full rounded-lg border p-3 text-left transition ${i === adIdx ? "border-accent bg-accent-soft" : "border-line hover:bg-surface-2"}`}>
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-sm font-semibold">{a.headline}</span>
                     <VibeBadge headline={a.headline} />
@@ -244,7 +271,7 @@ function ConceptCard({ concept: c, index, brand, website, budget, onSimulate }: 
             <MiniBlock title="Activation communauté" text={c.communityPlay} />
             <MiniBlock title="KPIs" text={c.kpis.join(" · ")} />
           </div>
-          {c.risks.length > 0 && <p className="text-xs text-muted">⚠ Risques : {c.risks.join(" · ")}</p>}
+          {c.risks.length > 0 && <p className="flex gap-1.5 text-xs text-muted"><Icon name="alert" size={13} className="mt-px shrink-0" />Risques : {c.risks.join(" · ")}</p>}
         </div>
         <div>
           <div className="label mb-2">Aperçu dans le feed</div>
@@ -257,7 +284,7 @@ function ConceptCard({ concept: c, index, brand, website, budget, onSimulate }: 
 
 function MiniBlock({ title, text }: { title: string; text: string }) {
   return (
-    <div className="rounded-xl bg-surface-2 p-3">
+    <div className="rounded-lg bg-surface-2 p-3">
       <div className="label">{title}</div>
       <div className="mt-1 text-xs text-ink-2">{text}</div>
     </div>

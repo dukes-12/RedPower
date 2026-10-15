@@ -198,6 +198,12 @@ export function demoCompany(rawName: string, countryCode = ""): CompanyIntel {
       watchouts: ["Communautés allergiques au ton corporate", "Commentaires publics sous les pubs : prévoir une modération active"],
     },
     countryInsight: demoCountry(name, countryCode, a, h),
+    keyTakeaways: [
+      `Audience très présente sur r/${a.subreddits[0][0]} et r/${a.subreddits[1][0]} : commencer par ces deux communautés (démo).`,
+      `Budget test réaliste : ${tiers.lo.toLocaleString("fr-FR")}–${tiers.hi.toLocaleString("fr-FR")} $/mois, soit une petite part du paid social (démo).`,
+      `Concurrence frontale avec ${a.competitors[0]} : un angle « comparatif honnête » se démarquera (démo).`,
+    ],
+    nextAction: `Lancer un test Traffic de 2 semaines sur r/${a.subreddits[0][0]} avec 3 créas au ton transparent (démo).`,
     quickWins: [
       `Organiser un AMA du fondateur de ${name} sur r/${a.subreddits[1][0]} puis le sponsoriser en Conversation Ad.`,
       `Post « On a lu toutes vos critiques sur ${a.competitors[0]} – voici ce qu'on a fait différemment ».`,

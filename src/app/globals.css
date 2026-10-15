@@ -2,67 +2,78 @@
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
+/*
+ * Identité « poste de media buyer » : fond graphite légèrement bleuté, orangé Reddit réservé
+ * aux actions et au signal, chiffres en mono, titres en grotesque expressive.
+ * Display : Bricolage Grotesque · Texte : IBM Plex Sans · Données : IBM Plex Mono.
+ */
 :root {
   color-scheme: light;
-  --bg: #f6f6f4;
+  --bg: #f1f2f4;
   --surface: #ffffff;
-  --surface-2: #f1f0ed;
-  --border: #e3e2de;
-  --text: #121212;
-  --text-2: #55534e;
-  --muted: #8a8882;
+  --surface-2: #eaecef;
+  --border: #dcdfe4;
+  --border-strong: #c5cad2;
+  --text: #13161b;
+  --text-2: #4a515d;
+  --muted: #7d8592;
   --accent: #ff4500;
-  --accent-ink: #d93a00;
-  --accent-soft: #fff0e9;
+  --accent-ink: #c43600;
+  --accent-soft: #fff1ea;
   --series-1: #2a78d6;
   --series-band: rgba(42, 120, 214, 0.14);
-  --good: #0f8a4a;
-  --warning: #b97700;
-  --critical: #d1342f;
-  --info: #2a78d6;
-  --grid: #ecebe7;
+  --good: #0f7f45;
+  --warning: #a86c00;
+  --critical: #c9302c;
+  --info: #2a6fc4;
+  --grid: #e7e9ec;
+  --font-display: "Bricolage Grotesque", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) {
     color-scheme: dark;
-    --bg: #0e0e0d;
-    --surface: #181817;
-    --surface-2: #222220;
-    --border: #2e2e2b;
-    --text: #f0efec;
-    --text-2: #c3c2b7;
-    --muted: #8f8d86;
+    --bg: #0c0e11;
+    --surface: #14171c;
+    --surface-2: #1c2027;
+    --border: #272c35;
+    --border-strong: #363c47;
+    --text: #eceef2;
+    --text-2: #b3bac6;
+    --muted: #7c8492;
     --accent: #ff5a1f;
-    --accent-ink: #ff7a45;
-    --accent-soft: #2a1a12;
+    --accent-ink: #ff8a57;
+    --accent-soft: #2a1710;
     --series-1: #3987e5;
     --series-band: rgba(57, 135, 229, 0.22);
     --good: #3cb371;
     --warning: #e0a526;
     --critical: #ef5b56;
-    --info: #3987e5;
-    --grid: #262624;
+    --info: #5a9de8;
+    --grid: #22262e;
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0e0e0d;
-  --surface: #181817;
-  --surface-2: #222220;
-  --border: #2e2e2b;
-  --text: #f0efec;
-  --text-2: #c3c2b7;
-  --muted: #8f8d86;
+  --bg: #0c0e11;
+  --surface: #14171c;
+  --surface-2: #1c2027;
+  --border: #272c35;
+  --border-strong: #363c47;
+  --text: #eceef2;
+  --text-2: #b3bac6;
+  --muted: #7c8492;
   --accent: #ff5a1f;
-  --accent-ink: #ff7a45;
-  --accent-soft: #2a1a12;
+  --accent-ink: #ff8a57;
+  --accent-soft: #2a1710;
   --series-1: #3987e5;
   --series-band: rgba(57, 135, 229, 0.22);
   --good: #3cb371;
   --warning: #e0a526;
   --critical: #ef5b56;
-  --info: #3987e5;
-  --grid: #262624;
+  --info: #5a9de8;
+  --grid: #22262e;
 }
 
 @theme inline {
@@ -70,6 +81,7 @@
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
   --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
   --color-ink: var(--text);
   --color-ink-2: var(--text-2);
   --color-muted: var(--muted);
@@ -81,50 +93,71 @@
   --color-warning: var(--warning);
   --color-critical: var(--critical);
   --color-info: var(--info);
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
 }
 
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: var(--font-sans);
+  font-family: var(--font-body);
+  font-size: 14.5px;
   -webkit-font-smoothing: antialiased;
+}
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  text-wrap: balance;
+  letter-spacing: -0.01em;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 10px;
 }
 .label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
+}
+.num,
+.tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 .input {
   width: 100%;
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
   padding: 0.55rem 0.75rem;
   color: var(--text);
   outline: none;
 }
 .input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 20%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 18%, transparent);
 }
 .btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  border-radius: 999px;
-  padding: 0.5rem 1rem;
+  gap: 0.45rem;
+  border-radius: 8px;
+  padding: 0.5rem 0.95rem;
   font-weight: 600;
   font-size: 14px;
-  transition: background 0.15s, opacity 0.15s;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
 }
 .btn-primary {
   background: var(--accent);
@@ -134,42 +167,71 @@ body {
   background: var(--accent-ink);
 }
 .btn-primary:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 .btn-ghost {
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   color: var(--text-2);
+  background: var(--surface);
 }
 .btn-ghost:hover {
-  background: var(--surface-2);
+  border-color: var(--text-2);
+  color: var(--text);
 }
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.35rem;
   border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0.2rem 0.65rem;
+  border-radius: 6px;
+  padding: 0.18rem 0.55rem;
   font-size: 13px;
   color: var(--text-2);
   background: var(--surface);
+}
+button.chip:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
 }
 .chip[data-active="true"] {
   border-color: var(--accent);
   color: var(--accent-ink);
   background: var(--accent-soft);
 }
-.tabular {
-  font-variant-numeric: tabular-nums;
-}
-input[type="range"] {
+input[type="range"],
+input[type="checkbox"] {
   accent-color: var(--accent);
 }
 @keyframes pulse-dot {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 .pulse {
   animation: pulse-dot 1.2s ease-in-out infinite;
+}
+@keyframes shimmer {
+  from {
+    background-position: -200px 0;
+  }
+  to {
+    background-position: 200px 0;
+  }
+}
+.skeleton {
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--surface-2) 0, var(--border) 50%, var(--surface-2) 100%);
+  background-size: 400px 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulse,
+  .skeleton {
+    animation: none;
+  }
 }

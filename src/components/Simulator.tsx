@@ -4,6 +4,7 @@ import { fmtMoney, fmtNum, simulate, type SimCommunity, type SimInput } from "@/
 import { transport } from "@/lib/transport";
 import { useEffect, useMemo, useState } from "react";
 import { BandChart, HBars } from "./Charts";
+import { Icon } from "./icons";
 import { Section, Stat, StatusLine } from "./ui";
 
 export interface SimConfig {
@@ -63,7 +64,7 @@ export function Simulator({ config, setConfig }: { config: SimConfig; setConfig:
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[340px_1fr]">
       {/* Contrôles */}
-      <div className="space-y-4 lg:sticky lg:top-4 lg:self-start">
+      <div className="space-y-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:self-start lg:overflow-y-auto lg:pb-2">
         <Section title="Paramètres" subtitle={config.label ?? "Reddit Ads"}>
           <label className="block text-sm">
             <span className="label">Objectif</span>
@@ -246,7 +247,7 @@ function CommunityEditor({ communities, onChange }: { communities: SimCommunity[
             <span className="flex items-center gap-2">
               <span className="tabular text-xs text-muted">{fmtNum(c.members)}</span>
               <button className="text-muted hover:text-critical" aria-label={`Retirer r/${c.name}`} onClick={() => onChange(communities.filter((x) => x.name !== c.name))}>
-                ✕
+                <Icon name="x" size={14} />
               </button>
             </span>
           </li>
@@ -261,7 +262,7 @@ function CommunityEditor({ communities, onChange }: { communities: SimCommunity[
           onKeyDown={(e) => e.key === "Enter" && add(q, 0)}
         />
         {(hits.length > 0 || searching) && (
-          <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-lg">
+          <ul className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-line bg-surface p-1 shadow-lg">
             {searching && <li className="px-2 py-1.5 text-xs text-muted">Recherche sur Reddit…</li>}
             {hits.map((h) => (
               <li key={h.name}>

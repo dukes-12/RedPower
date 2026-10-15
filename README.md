@@ -13,7 +13,9 @@ Tapez le nom d'une entreprise → RedPower fait une recherche web en temps réel
 | 📈 **Simulateur** | Impressions, reach, fréquence, clics, conversions, CPM/CPC/CPA, ROAS, avec fourchette pessimiste / optimiste. Modèle : benchmarks par objectif et secteur, reach à rendements décroissants, fatigue créative, phase d'apprentissage. Répartition par communauté, recommandations automatiques et **comparateur multi-plateformes**. |
 | 🧪 **Headline Lab** | « Reddit Vibe Check » : score d'authenticité en direct (jargon, clickbait, majuscules, spécificité, ton humain…), variantes en un clic, exemples avant / après. |
 
-Sous la barre de recherche, deux réglages : **le modèle Claude** (Opus 5.5 par défaut, Fable 5.1, Sonnet 5.5 ou Haiku 5.5), utilisé pour l'analyse et pour le Studio campagne, et **le pays visé**, qui ajoute à la fiche un encart sur la perception de la marque dans ce pays (présence, notoriété, image, différences avec le reste du monde, concurrents et subreddits locaux, conseils d'adaptation) et préremplit le marché du Studio.
+Un **parcours guidé** (Analyser → Campagnes → Simuler) relie les outils, mais chacun reste accessible seul, y compris le Headline Lab. La fiche s'ouvre sur un résumé **« En bref »** (3 constats et l'action n°1), et chaque donnée porte un **badge de fiabilité** (Vérifié, Source web, Claude, Estimation, Démo).
+
+Réglages : **le modèle Claude** de l'analyse (Haiku 5.5 par défaut) et celui des campagnes (Sonnet 5.5 par défaut), modifiables séparément parmi Opus 5.5, Fable 5.1, Sonnet 5.5 et Haiku 5.5, et **le pays visé**, qui ajoute à la fiche un encart sur la perception de la marque dans ce pays (présence, notoriété, image, différences avec le reste du monde, concurrents et subreddits locaux, conseils d'adaptation) et préremplit le marché du Studio.
 
 Les éléments sont reliés entre eux : cocher des subreddits alimente le simulateur, cliquer un objectif ou une idée crée un brief, et « Simuler ce concept » transfère objectif, budget et ciblage dans le simulateur.
 
@@ -29,7 +31,7 @@ Sans clé API, l'app tourne en **mode démo** : données simulées mais détermi
 
 ## Version claude.ai (artifact)
 
-`npm run build:artifact` produit `dist/redpower-artifact.html`, une page autonome publiable comme artifact sur claude.ai. Elle n'a pas besoin de serveur ni de clé API : l'analyse et les campagnes passent par Claude sur le compte de la personne qui ouvre la page (capacité `sample`), à partir des connaissances du modèle, **sans recherche web en temps réel**. Si Claude n'est pas disponible ou que l'accès est refusé, la page bascule en mode démo.
+`npm run build:artifact` produit `dist/redpower-artifact.html`, une page autonome publiable comme artifact sur claude.ai. Elle n'a pas besoin de serveur ni de clé API (environ 150 Ko, zod n'y est pas embarqué : les JSON Schemas sont calculés au build) : l'analyse et les campagnes passent par Claude sur le compte de la personne qui ouvre la page (capacité `sample`), à partir des connaissances du modèle, **sans recherche web en temps réel**. Si Claude n'est pas disponible ou que l'accès est refusé, la page bascule en mode démo.
 
 ## Architecture
 
