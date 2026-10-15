@@ -4,7 +4,8 @@ import { CompanyPanel } from "@/components/CompanyPanel";
 import { HeadlineLab } from "@/components/HeadlineLab";
 import { Simulator, type SimConfig } from "@/components/Simulator";
 import { Empty, Progress } from "@/components/ui";
-import { loadJSON, saveJSON, streamPost } from "@/lib/client";
+import { loadJSON, saveJSON } from "@/lib/client";
+import { transport, type ResultMode, type Status } from "@/lib/transport";
 import { PLATFORMS, REDDIT_OBJECTIVE_TO_GOAL } from "@/lib/platforms";
 import type { CampaignBrief, CampaignConcept, CampaignPlan, CompanyIntel, Source } from "@/lib/schemas";
 import { useEffect, useRef, useState } from "react";
@@ -21,7 +22,7 @@ const EXAMPLES = ["Notion", "Duolingo", "Back Market", "Liquid Death", "Revolut"
 interface Analysis {
   intel: CompanyIntel;
   sources: Source[];
-  mode: "live" | "demo";
+  mode: ResultMode;
   at: number;
 }
 
@@ -39,15 +40,15 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [brief, setBrief] = useState<CampaignBrief>(DEFAULT_BRIEF);
-  const [plan, setPlan] = useState<{ data: CampaignPlan; mode: "live" | "demo" } | null>(null);
+  const [plan, setPlan] = useState<{ data: CampaignPlan; mode: ResultMode } | null>(null);
   const [sim, setSim] = useState<SimConfig>(DEFAULT_SIM);
-  const [status, setStatus] = useState<{ live: boolean; model: string | null } | null>(null);
+  const [status, setStatus] = useState<Status | null>(null);
   const [forceDemo, setForceDemo] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark" | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    fetch("/api/status").then((r) => r.json()).then(setStatus).catch(() => setStatus({ live: false, model: null }));
+    transport().status().then(setStatus);
     setHistory(loadJSON<Analysis[]>("rp-history", []));
     setTheme((document.documentElement.dataset.theme as "light" | "dark") ?? null);
   }, []);
@@ -85,9 +86,9 @@ export default function Home() {
     setStages([]);
     setLiveSources([]);
     try {
-      const res = await streamPost<CompanyIntel>(
-        "/api/company",
-        { company, forceDemo },
+      const res = await transport().analyzeCompany(
+        company,
+        forceDemo,
         { onStage: (s) => setStages((p) => (p[p.length - 1] === s ? p : [...p, s])), onSource: (s) => setLiveSources((p) => [...p, s]) },
         ctrl.signal,
       );
@@ -158,10 +159,10 @@ export default function Home() {
           <button
             className="chip text-xs"
             onClick={() => status?.live && setForceDemo((v) => !v)}
-            title={status?.live ? `Modèle : ${status.model}. Cliquer pour basculer en démo.` : "Ajoutez ANTHROPIC_API_KEY dans .env.local pour activer l'analyse temps réel"}
+            title={status?.live ? `${status.detail}. Cliquer pour basculer en démo.` : "Ajoutez ANTHROPIC_API_KEY dans .env.local pour activer l'analyse temps réel"}
           >
             <span className={`size-2 rounded-full ${isDemo ? "bg-warning" : "bg-good"}`} />
-            {isDemo ? "Mode démo" : "Live · web temps réel"}
+            {isDemo ? "Mode démo" : status?.label}
           </button>
           <button className="chip text-xs" onClick={toggleTheme} aria-label="Changer de thème">
             {theme === "dark" ? "☀" : "☾"}
@@ -213,15 +214,19 @@ export default function Home() {
             </button>
           ))}
         </div>
-        {isDemo && !intel && !loading && (
+        {isDemo && !intel && !loading && status && (
           <p className="mt-4 text-xs text-muted">
-            Mode démo actif : données simulées. Ajoutez <code className="rounded bg-surface-2 px-1">ANTHROPIC_API_KEY</code> dans <code className="rounded bg-surface-2 px-1">.env.local</code> pour l'analyse en temps réel avec recherche web.
+            {status?.demoHint ?? (
+              <>
+                Mode démo actif : données simulées. Ajoutez <code className="rounded bg-surface-2 px-1">ANTHROPIC_API_KEY</code> dans <code className="rounded bg-surface-2 px-1">.env.local</code> pour l'analyse en temps réel avec recherche web.
+              </>
+            )}
           </p>
         )}
       </section>
 
       {/* Onglets */}
-      <nav className="sticky top-0 z-20 -mx-4 mt-4 flex gap-1 overflow-x-auto bg-bg/90 px-4 py-2 backdrop-blur sm:mx-0 sm:px-0" aria-label="Sections">
+      <nav className="sticky top-[env(safe-area-inset-top,0px)] z-20 -mx-4 mt-4 flex gap-1 overflow-x-auto bg-bg/90 px-4 py-2 backdrop-blur sm:mx-0 sm:px-0" aria-label="Sections">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -234,7 +239,7 @@ export default function Home() {
         ))}
         {analysis && (
           <span className="ml-auto hidden items-center gap-1.5 self-center text-xs text-muted md:flex">
-            {analysis.mode === "demo" ? "Données démo" : "Analyse live"} · {new Date(analysis.at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
+            {analysis.mode === "demo" ? "Données démo" : analysis.mode === "knowledge" ? "Analyse Claude" : "Analyse live"} · {new Date(analysis.at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
           </span>
         )}
       </nav>
@@ -246,7 +251,7 @@ export default function Home() {
           (loading ? (
             <Progress stages={stages.length ? stages : ["Connexion…"]} sources={liveSources} />
           ) : intel ? (
-            <CompanyPanel intel={intel} sources={analysis!.sources} selected={selected} onToggleSub={toggleSub} onGoCampaign={goCampaign} />
+            <CompanyPanel intel={intel} mode={analysis!.mode} sources={analysis!.sources} selected={selected} onToggleSub={toggleSub} onGoCampaign={goCampaign} />
           ) : (
             <Empty title="Commencez par une entreprise">
               La fiche s'affichera ici : identité, budget estimé, objectifs actuels, actualités, keywords par intention et communautés Reddit classées par pertinence.

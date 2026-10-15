@@ -179,5 +179,5 @@ export interface CampaignBrief {
 export type StreamEvent<T> =
   | { type: "stage"; label: string }
   | { type: "source"; source: Source }
-  | { type: "result"; data: T; mode: "live" | "demo"; sources: Source[] }
+  | { type: "result"; data: T; mode: "live" | "knowledge" | "demo"; sources: Source[] }
   | { type: "error"; message: string };

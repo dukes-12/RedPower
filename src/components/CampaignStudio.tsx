@@ -1,5 +1,5 @@
 "use client";
-import { streamPost } from "@/lib/client";
+import { transport, type ResultMode } from "@/lib/transport";
 import { REDDIT_OBJECTIVES, type CampaignBrief, type CampaignConcept, type CampaignPlan, type CompanyIntel } from "@/lib/schemas";
 import { fmtMoney } from "@/lib/simulator";
 import { useState } from "react";
@@ -29,8 +29,8 @@ export function CampaignStudio({
   intel: CompanyIntel | null;
   brief: CampaignBrief;
   setBrief: (b: CampaignBrief) => void;
-  plan: { data: CampaignPlan; mode: "live" | "demo" } | null;
-  setPlan: (p: { data: CampaignPlan; mode: "live" | "demo" } | null) => void;
+  plan: { data: CampaignPlan; mode: ResultMode } | null;
+  setPlan: (p: { data: CampaignPlan; mode: ResultMode } | null) => void;
   onSimulate: (c: CampaignConcept, budget: number) => void;
   forceDemo: boolean;
 }) {
@@ -43,7 +43,7 @@ export function CampaignStudio({
     setError(null);
     setStages([]);
     try {
-      const res = await streamPost<CampaignPlan>("/api/campaign", { brief, intel, forceDemo }, { onStage: (s) => setStages((p) => [...p, s]) });
+      const res = await transport().generateCampaign(brief, intel, forceDemo, { onStage: (s) => setStages((p) => (p[p.length - 1] === s ? p : [...p, s])) });
       setPlan({ data: res.data, mode: res.mode });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
@@ -125,7 +125,7 @@ export function CampaignStudio({
   );
 }
 
-function PlanView({ plan, mode, intel, budget, onSimulate }: { plan: CampaignPlan; mode: "live" | "demo"; intel: CompanyIntel | null; budget: number; onSimulate: (c: CampaignConcept, budget: number) => void }) {
+function PlanView({ plan, mode, intel, budget, onSimulate }: { plan: CampaignPlan; mode: ResultMode; intel: CompanyIntel | null; budget: number; onSimulate: (c: CampaignConcept, budget: number) => void }) {
   const brand = intel?.name ?? "Brand";
   return (
     <>

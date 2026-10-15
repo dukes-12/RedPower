@@ -96,8 +96,8 @@ export function CopyButton({ text, label = "Copier" }: { text: string; label?: s
       type="button"
       className="btn btn-ghost !px-3 !py-1 text-xs"
       onClick={(e) => {
-        navigator.clipboard?.writeText(text);
         const el = e.currentTarget;
+        navigator.clipboard?.writeText(text).catch(() => undefined);
         const prev = el.textContent;
         el.textContent = "Copié ✓";
         setTimeout(() => (el.textContent = prev), 1200);

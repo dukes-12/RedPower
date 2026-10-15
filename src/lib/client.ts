@@ -12,7 +12,7 @@ export async function streamPost<T>(
   body: unknown,
   handlers: StreamHandlers<T>,
   signal?: AbortSignal,
-): Promise<{ data: T; mode: "live" | "demo"; sources: Source[] }> {
+): Promise<{ data: T; mode: "live" | "knowledge" | "demo"; sources: Source[] }> {
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
   if (!res.ok || !res.body) {
     const err = await res.json().catch(() => ({}));

@@ -25,6 +25,10 @@ npm run dev                  # http://localhost:3000
 
 Sans clé API, l'app tourne en **mode démo** : données simulées mais déterministes, clairement étiquetées. Avec une clé, l'analyse utilise Claude (`claude-opus-5-5` par défaut, modifiable via `REDPOWER_MODEL`) avec l'outil de recherche web côté serveur, puis une sortie structurée validée par Zod.
 
+## Version claude.ai (artifact)
+
+`npm run build:artifact` produit `dist/redpower-artifact.html`, une page autonome publiable comme artifact sur claude.ai. Elle n'a pas besoin de serveur ni de clé API : l'analyse et les campagnes passent par Claude sur le compte de la personne qui ouvre la page (capacité `sample`), à partir des connaissances du modèle, **sans recherche web en temps réel**. Si Claude n'est pas disponible ou que l'accès est refusé, la page bascule en mode démo.
+
 ## Architecture
 
 ```
@@ -32,6 +36,9 @@ src/
   app/api/company     Recherche web + structuration → fiche entreprise (streaming NDJSON)
   app/api/campaign    Brief → plan de campagne structuré
   app/api/subreddits  Recherche de subreddits (API publique Reddit)
+  lib/transport.ts    Accès aux données : serveur Next.js ou artifact claude.ai
+  lib/prompts.ts      Consignes partagées entre les deux versions
+  artifact/           Point d'entrée et transport de la version artifact
   lib/claude.ts       Appels Claude : recherche (web_search, gestion pause_turn), sortie structurée, fallback serveur
   lib/schemas.ts      Schémas Zod partagés (fiche, concepts, annonces)
   lib/platforms/      Registre des plateformes et benchmarks (ajouter une plateforme = une entrée)

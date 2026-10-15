@@ -1,6 +1,7 @@
 "use client";
 import { GOAL_LABELS, PLATFORMS, REDDIT, type GoalId } from "@/lib/platforms";
 import { fmtMoney, fmtNum, simulate, type SimCommunity, type SimInput } from "@/lib/simulator";
+import { transport } from "@/lib/transport";
 import { useEffect, useMemo, useState } from "react";
 import { BandChart, HBars } from "./Charts";
 import { Section, Stat, StatusLine } from "./ui";
@@ -218,9 +219,7 @@ function CommunityEditor({ communities, onChange }: { communities: SimCommunity[
     const t = setTimeout(async () => {
       setSearching(true);
       try {
-        const res = await fetch(`/api/subreddits?q=${encodeURIComponent(term)}`);
-        const json = (await res.json()) as { results: { name: string; members: number }[] };
-        setHits(json.results);
+        setHits(await transport().searchSubreddits(term));
       } catch {
         setHits([]);
       } finally {

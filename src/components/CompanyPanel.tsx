@@ -8,12 +8,14 @@ const INTENTS = ["toutes", "découverte", "considération", "achat", "problème"
 
 export function CompanyPanel({
   intel,
+  mode,
   sources,
   selected,
   onToggleSub,
   onGoCampaign,
 }: {
   intel: CompanyIntel;
+  mode: "live" | "knowledge" | "demo";
   sources: Source[];
   selected: string[];
   onToggleSub: (name: string) => void;
@@ -253,7 +255,7 @@ export function CompanyPanel({
         </div>
       </Section>
 
-      <Section title="Sources" subtitle={sources.length ? "Recherche web en temps réel" : "Mode démo : aucune source réelle"}>
+      <Section title="Sources" subtitle={mode === "live" ? "Recherche web en temps réel" : mode === "knowledge" ? "Connaissances de Claude, sans recherche web" : "Mode démo : aucune source réelle"}>
         {sources.length ? (
           <ul className="max-h-64 space-y-1.5 overflow-y-auto pr-1">
             {sources.map((s) => (
@@ -265,7 +267,11 @@ export function CompanyPanel({
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-muted">Configurez ANTHROPIC_API_KEY pour une analyse sourcée.</p>
+          <p className="text-sm text-muted">
+            {mode === "knowledge"
+              ? "Analyse issue des connaissances de Claude : vérifiez les faits récents. La version serveur avec clé API ajoute la recherche web en temps réel."
+              : "Configurez ANTHROPIC_API_KEY pour une analyse sourcée."}
+          </p>
         )}
       </Section>
     </div>
