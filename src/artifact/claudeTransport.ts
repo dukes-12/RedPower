@@ -5,12 +5,13 @@
  */
 import { z } from "zod";
 import { demoCampaign, demoCompany } from "@/lib/demo";
-import { CAMPAIGN_RULES, COMPANY_RULES, campaignPrompt } from "@/lib/prompts";
+import { modelInfo } from "@/lib/models";
+import { CAMPAIGN_RULES, COMPANY_RULES, campaignPrompt, countryRules } from "@/lib/prompts";
 import { CampaignPlanSchema, CompanyIntelSchema, type CampaignPlan, type CompanyIntel } from "@/lib/schemas";
 import type { Handlers, Result, Transport } from "@/lib/transport";
 
 interface SampleFn {
-  json<T = unknown>(input: string, opts?: { onText?: (u: { text: string }) => void; signal?: AbortSignal; modelTier?: "quick" | "default" | "complex" }): Promise<T>;
+  json<T = unknown>(input: string, opts?: { onText?: (u: { text: string }) => void; signal?: AbortSignal; modelTier?: "quick" | "default" | "complex"; model?: string }): Promise<T>;
 }
 interface SampleError {
   code: string;
@@ -73,6 +74,12 @@ async function demoStages(h: Handlers, labels: string[]) {
   }
 }
 
+/** Modèle nommé + niveau de repli si le compte du visiteur n'y a pas accès. */
+function modelOptions(id: string) {
+  const m = modelInfo(id);
+  return { model: m.id, modelTier: m.tier };
+}
+
 const schemaText = (s: z.ZodType) => JSON.stringify(z.toJSONSchema(s));
 
 export const claudeTransport: Transport = {
@@ -93,35 +100,36 @@ export const claudeTransport: Transport = {
         };
   },
 
-  async analyzeCompany(company, forceDemo, h, signal): Promise<Result<CompanyIntel>> {
+  async analyzeCompany(company, opts, h, signal): Promise<Result<CompanyIntel>> {
     const sample = await getSample();
-    if (!sample || forceDemo || declined) {
+    if (!sample || opts.forceDemo || declined) {
       await demoStages(h, ["Recherche (simulée)…", "Estimation du budget…", "Cartographie des communautés Reddit…"]);
-      return { data: demoCompany(company), mode: "demo", sources: [] };
+      return { data: demoCompany(company, opts.country), mode: "demo", sources: [] };
     }
-    h.onStage?.("Claude analyse l'entreprise… (une autorisation peut vous être demandée)");
+    h.onStage?.(`Claude ${modelInfo(opts.model).label} analyse l'entreprise… (une autorisation peut vous être demandée)`);
     const prompt = `Tu es un analyste senior en stratégie média et intelligence économique, spécialiste de Reddit Ads.
 Produis la fiche de l'entreprise « ${company} » à partir de tes connaissances (date du jour : ${new Date().toISOString().slice(0, 10)}).
 Si le nom est ambigu, choisis l'entreprise la plus connue et précise-le dans le résumé. Pour les actualités, indique des dates approximatives et reste prudent sur ce qui est récent.
 Quand une donnée n'est pas publique (budget marketing notamment), estime-la avec un raisonnement explicite (ratio marketing/CA du secteur et du stade de l'entreprise).
 
 ${COMPANY_RULES.replace("Tu convertis des notes de recherche en fiche entreprise structurée pour un planneur Reddit Ads. ", "")}
+${countryRules(opts.country)}
 
 Réponds uniquement avec un objet JSON conforme à ce JSON Schema :
 ${schemaText(CompanyIntelSchema)}`;
     try {
-      const raw = await sample.json(prompt, { onText: progress(h, "Claude rédige la fiche"), signal });
+      const raw = await sample.json(prompt, { onText: progress(h, "Claude rédige la fiche"), signal, ...modelOptions(opts.model) });
       h.onStage?.("Vérification de la fiche…");
-      return { data: coerce(CompanyIntelSchema, raw, demoCompany(company)) as CompanyIntel, mode: "knowledge", sources: [] };
+      return { data: coerce(CompanyIntelSchema, raw, demoCompany(company, opts.country)) as CompanyIntel, mode: "knowledge", sources: [] };
     } catch (e) {
       if ((e as SampleError)?.code === "cancelled") throw Object.assign(new Error("cancelled"), { name: "AbortError" });
       throw toError(e);
     }
   },
 
-  async generateCampaign(brief, intel, forceDemo, h): Promise<Result<CampaignPlan>> {
+  async generateCampaign(brief, intel, opts, h): Promise<Result<CampaignPlan>> {
     const sample = await getSample();
-    if (!sample || forceDemo || declined) {
+    if (!sample || opts.forceDemo || declined) {
       await demoStages(h, ["Lecture du brief…", "Idéation des concepts…", "Écriture des headlines…"]);
       return { data: demoCampaign(brief, intel), mode: "demo", sources: [] };
     }
@@ -133,7 +141,7 @@ ${campaignPrompt(brief, intel)}
 Réponds uniquement avec un objet JSON conforme à ce JSON Schema :
 ${schemaText(CampaignPlanSchema)}`;
     try {
-      const raw = await sample.json(prompt, { onText: progress(h, "Claude écrit les campagnes") });
+      const raw = await sample.json(prompt, { onText: progress(h, "Claude écrit les campagnes"), ...modelOptions(opts.model) });
       return { data: coerce(CampaignPlanSchema, raw, demoCampaign(brief, intel)), mode: "knowledge", sources: [] };
     } catch (e) {
       throw toError(e);

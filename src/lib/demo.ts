@@ -2,6 +2,7 @@
  * Mode démo : génère des fiches et campagnes plausibles sans clé API.
  * Tout est déterministe (même nom → même résultat) et explicitement étiqueté "démo" dans l'UI.
  */
+import { countryInfo } from "./countries";
 import type { CampaignBrief, CampaignConcept, CampaignPlan, CompanyIntel, RedditObjective, Subreddit } from "./schemas";
 
 interface Archetype {
@@ -131,7 +132,7 @@ function archetypeFor(name: string): Archetype {
 
 const cap = (s: string) => s.trim().replace(/\b\w/g, (c) => c.toUpperCase());
 
-export function demoCompany(rawName: string): CompanyIntel {
+export function demoCompany(rawName: string, countryCode = ""): CompanyIntel {
   const name = cap(rawName);
   const a = archetypeFor(rawName);
   const h = hash(rawName.toLowerCase());
@@ -196,11 +197,52 @@ export function demoCompany(rawName: string): CompanyIntel {
       strengths: ["Communautés de niche très qualifiées", "CPM inférieurs à Meta et LinkedIn", "Discussions organiques existantes sur la catégorie"],
       watchouts: ["Communautés allergiques au ton corporate", "Commentaires publics sous les pubs : prévoir une modération active"],
     },
+    countryInsight: demoCountry(name, countryCode, a, h),
     quickWins: [
       `Organiser un AMA du fondateur de ${name} sur r/${a.subreddits[1][0]} puis le sponsoriser en Conversation Ad.`,
       `Post « On a lu toutes vos critiques sur ${a.competitors[0]} – voici ce qu'on a fait différemment ».`,
       "Offre exclusive redditors avec un code lié à un mème de la communauté.",
       "Sponsoriser un thread de feedback produit plutôt qu'une pub classique.",
+    ],
+  };
+}
+
+const LOCAL_SUBS: Record<string, string[]> = {
+  FR: ["france", "vosfinances", "AskFrance", "jeuxvideo"],
+  BE: ["belgium", "belgique", "brussels"],
+  CH: ["Switzerland", "Romandie", "zurich"],
+  "CA-QC": ["Quebec", "montreal", "PersonalFinanceCanada"],
+  CA: ["canada", "PersonalFinanceCanada", "toronto"],
+  US: ["AskAnAmerican", "personalfinance", "BuyItForLife"],
+  GB: ["unitedkingdom", "UKPersonalFinance", "AskUK"],
+  DE: ["de", "Finanzen", "germany"],
+  ES: ["spain", "es", "SpainFIRE"],
+  IT: ["italy", "ItaliaPersonalFinance", "Italia"],
+  NL: ["thenetherlands", "geldzaken", "Netherlands"],
+};
+
+function demoCountry(name: string, code: string, a: Archetype, h: number): CompanyIntel["countryInsight"] {
+  if (!code) return null;
+  const c = countryInfo(code);
+  const presence = (["forte", "moyenne", "faible"] as const)[(h >>> 3) % 3];
+  return {
+    country: c.label,
+    presence,
+    awareness: presence === "forte" ? `${name} est une marque connue du grand public en ${c.label} (démo).` : `${name} reste surtout connue des early adopters en ${c.label} (démo).`,
+    perception: `Données de démonstration : en ${c.label}, la marque est associée à la simplicité, mais on lui reproche parfois un manque d'adaptation locale (langue, support, moyens de paiement).`,
+    sentiment: (["positif", "mitigé", "inconnu"] as const)[(h >>> 5) % 3],
+    differences: [
+      `Offre et prix ajustés au marché ${c.label} (démo)`,
+      `Concurrence locale plus forte qu'à l'international`,
+      `Communication attendue en ${c.lang || "langue locale"}, ton plus direct`,
+      "Réglementation et usages publicitaires spécifiques",
+    ],
+    localCompetitors: [`${a.competitors[0]} (démo)`, "Acteur local historique (démo)"],
+    localSubreddits: LOCAL_SUBS[code] ?? [c.label.toLowerCase().replace(/[^a-z]/g, "")],
+    adaptationTips: [
+      `Écrire les annonces en ${c.lang || "langue locale"}, avec des références culturelles locales`,
+      "Mentionner la disponibilité locale (livraison, support, prix en devise locale)",
+      "Cibler les subreddits nationaux en plus des communautés thématiques",
     ],
   };
 }

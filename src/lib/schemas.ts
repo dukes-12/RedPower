@@ -49,6 +49,19 @@ export const KeywordSchema = z.object({
   priority: z.number().describe("Priorité de 1 (haute) à 3 (basse)"),
 });
 
+export const CountryInsightSchema = z.object({
+  country: z.string(),
+  presence: z.enum(["forte", "moyenne", "faible", "absente"]).describe("Présence commerciale de la marque dans ce pays"),
+  awareness: z.string().describe("Niveau de notoriété dans ce pays, en une phrase"),
+  perception: z.string().describe("Comment la marque est perçue dans ce pays (image, réputation, controverses éventuelles), 2-3 phrases"),
+  sentiment: z.enum(["positif", "mitigé", "négatif", "inconnu"]),
+  differences: z.array(z.string()).describe("3 à 5 différences clés avec le reste du monde : offre, prix, concurrence, culture, réglementation"),
+  localCompetitors: z.array(z.string()).describe("Concurrents locaux ou plus forts dans ce pays"),
+  localSubreddits: z.array(z.string()).describe("Subreddits du pays ou de sa langue pertinents, sans le préfixe r/"),
+  adaptationTips: z.array(z.string()).describe("2 à 4 conseils pour adapter le ton et les annonces à ce pays"),
+});
+export type CountryInsight = z.infer<typeof CountryInsightSchema>;
+
 export const CompanyIntelSchema = z.object({
   name: z.string(),
   website: z.string().describe("URL du site officiel, ou chaîne vide si inconnu"),
@@ -111,6 +124,7 @@ export const CompanyIntelSchema = z.object({
     watchouts: z.array(z.string()),
   }),
   quickWins: z.array(z.string()).describe("3 à 5 idées d'actions Reddit immédiates et créatives"),
+  countryInsight: CountryInsightSchema.nullable().describe("Encart pays : null si aucun pays visé n'est demandé"),
 });
 export type CompanyIntel = Omit<z.infer<typeof CompanyIntelSchema>, "subreddits"> & {
   subreddits: Subreddit[];
@@ -166,6 +180,14 @@ export type CampaignPlan = z.infer<typeof CampaignPlanSchema>;
 
 export const Source = z.object({ title: z.string(), url: z.string() });
 export type Source = z.infer<typeof Source>;
+
+export interface AnalysisOptions {
+  /** Identifiant du modèle Claude (voir lib/models.ts). */
+  model: string;
+  /** Code pays visé (voir lib/countries.ts), "" = aucun. */
+  country: string;
+  forceDemo?: boolean;
+}
 
 export interface CampaignBrief {
   brief: string;

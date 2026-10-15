@@ -6,6 +6,8 @@ import { Simulator, type SimConfig } from "@/components/Simulator";
 import { Empty, Progress } from "@/components/ui";
 import { loadJSON, saveJSON } from "@/lib/client";
 import { transport, type ResultMode, type Status } from "@/lib/transport";
+import { COUNTRIES, countryInfo } from "@/lib/countries";
+import { DEFAULT_MODEL, MODELS, isModelId, modelInfo } from "@/lib/models";
 import { PLATFORMS, REDDIT_OBJECTIVE_TO_GOAL } from "@/lib/platforms";
 import type { CampaignBrief, CampaignConcept, CampaignPlan, CompanyIntel, Source } from "@/lib/schemas";
 import { useEffect, useRef, useState } from "react";
@@ -24,6 +26,8 @@ interface Analysis {
   sources: Source[];
   mode: ResultMode;
   at: number;
+  model?: string;
+  country?: string;
 }
 
 const DEFAULT_SIM: SimConfig = { goal: "traffic", monthlyBudget: 3000, durationDays: 30, creativeQuality: 1, conversionValue: 0, communities: [] };
@@ -44,12 +48,17 @@ export default function Home() {
   const [sim, setSim] = useState<SimConfig>(DEFAULT_SIM);
   const [status, setStatus] = useState<Status | null>(null);
   const [forceDemo, setForceDemo] = useState(false);
+  const [model, setModel] = useState<string>(DEFAULT_MODEL);
+  const [country, setCountry] = useState<string>("");
   const [theme, setTheme] = useState<"light" | "dark" | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     transport().status().then(setStatus);
     setHistory(loadJSON<Analysis[]>("rp-history", []));
+    const settings = loadJSON<{ model?: string; country?: string }>("rp-settings", {});
+    if (isModelId(settings.model)) setModel(settings.model);
+    if (settings.country !== undefined) setCountry(countryInfo(settings.country).code);
     setTheme((document.documentElement.dataset.theme as "light" | "dark") ?? null);
   }, []);
 
@@ -63,13 +72,21 @@ export default function Home() {
     } catch {}
   }
 
+  function updateSettings(patch: { model?: string; country?: string }) {
+    const next = { model, country, ...patch };
+    setModel(next.model);
+    setCountry(next.country);
+    saveJSON("rp-settings", next);
+  }
+
   function applyAnalysis(a: Analysis) {
     setAnalysis(a);
     const top = [...a.intel.subreddits].sort((x, y) => y.relevance - x.relevance).slice(0, 5).map((s) => s.name);
     setSelected(top);
     const budget = Math.round((a.intel.budget.recommendedRedditMonthlyLow + a.intel.budget.recommendedRedditMonthlyHigh) / 2 / 100) * 100 || 3000;
     setSim((s) => ({ ...s, monthlyBudget: budget, industry: a.intel.industry, label: a.intel.name, communities: toCommunities(a.intel, top) }));
-    setBrief((b) => ({ ...b, monthlyBudget: budget }));
+    const c = countryInfo(a.country);
+    setBrief((b) => ({ ...b, monthlyBudget: budget, geo: c.code ? `${c.label}, ${c.lang}` : b.geo }));
     setPlan(null);
   }
 
@@ -88,13 +105,13 @@ export default function Home() {
     try {
       const res = await transport().analyzeCompany(
         company,
-        forceDemo,
+        { forceDemo, model, country },
         { onStage: (s) => setStages((p) => (p[p.length - 1] === s ? p : [...p, s])), onSource: (s) => setLiveSources((p) => [...p, s]) },
         ctrl.signal,
       );
-      const a: Analysis = { intel: res.data, sources: res.sources, mode: res.mode, at: Date.now() };
+      const a: Analysis = { intel: res.data, sources: res.sources, mode: res.mode, at: Date.now(), model, country };
       applyAnalysis(a);
-      const nextHistory = [a, ...history.filter((h) => h.intel.name.toLowerCase() !== a.intel.name.toLowerCase())].slice(0, 8);
+      const nextHistory = [a, ...history.filter((h) => !(h.intel.name.toLowerCase() === a.intel.name.toLowerCase() && (h.country ?? "") === country))].slice(0, 8);
       setHistory(nextHistory);
       saveJSON("rp-history", nextHistory);
     } catch (e) {
@@ -195,24 +212,52 @@ export default function Home() {
             {loading ? "Analyse…" : "Analyser"}
           </button>
         </form>
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:max-w-2xl">
+          <label className="flex items-center gap-2 text-sm">
+            <span className="label w-20 shrink-0">Modèle</span>
+            <select id="rp-model" className="input !py-1.5 text-sm" value={model} onChange={(e) => updateSettings({ model: e.target.value })} >
+              {MODELS.map((m) => (
+                <option key={m.id} value={m.id}>
+                  Claude {m.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <span className="label w-20 shrink-0">Pays visé</span>
+            <select id="rp-country" className="input !py-1.5 text-sm" value={country} onChange={(e) => updateSettings({ country: e.target.value })}>
+              {COUNTRIES.map((c) => (
+                <option key={c.code} value={c.code}>{c.label}</option>
+              ))}
+            </select>
+          </label>
+          <p className="text-xs text-muted sm:col-span-2">
+            {modelInfo(model).hint}
+            {country ? ` · la fiche inclura un encart sur la perception de la marque en ${countryInfo(country).label}.` : "."}
+          </p>
+        </div>
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-muted">{history.length ? "Récents :" : "Essayez :"}</span>
-          {(history.length ? history.map((h) => h.intel.name) : EXAMPLES).map((n) => (
-            <button
-              key={n}
-              className="chip text-xs hover:border-accent"
-              onClick={() => {
-                const h = history.find((x) => x.intel.name === n);
-                if (h) {
-                  applyAnalysis(h);
-                  setQuery(h.intel.name);
-                  setTab("intel");
-                } else analyze(n);
-              }}
-            >
-              {n}
-            </button>
-          ))}
+          {history.length
+            ? history.map((h) => (
+                <button
+                  key={`${h.intel.name}-${h.country ?? ""}`}
+                  className="chip text-xs hover:border-accent"
+                  onClick={() => {
+                    applyAnalysis(h);
+                    setQuery(h.intel.name);
+                    setTab("intel");
+                  }}
+                >
+                  {h.intel.name}
+                  {h.country ? <span className="text-muted">· {h.country}</span> : null}
+                </button>
+              ))
+            : EXAMPLES.map((n) => (
+                <button key={n} className="chip text-xs hover:border-accent" onClick={() => analyze(n)}>
+                  {n}
+                </button>
+              ))}
         </div>
         {isDemo && !intel && !loading && status && (
           <p className="mt-4 text-xs text-muted">
@@ -239,7 +284,9 @@ export default function Home() {
         ))}
         {analysis && (
           <span className="ml-auto hidden items-center gap-1.5 self-center text-xs text-muted md:flex">
-            {analysis.mode === "demo" ? "Données démo" : analysis.mode === "knowledge" ? "Analyse Claude" : "Analyse live"} · {new Date(analysis.at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
+            {analysis.mode === "demo" ? "Données démo" : analysis.mode === "knowledge" ? "Analyse Claude" : "Analyse live"}
+            {analysis.mode !== "demo" && analysis.model ? ` ${modelInfo(analysis.model).label}` : ""}
+            {analysis.country ? ` · ${countryInfo(analysis.country).label}` : ""} · {new Date(analysis.at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
           </span>
         )}
       </nav>
@@ -258,7 +305,7 @@ export default function Home() {
             </Empty>
           ))}
 
-        {tab === "studio" && <CampaignStudio intel={intel} brief={brief} setBrief={setBrief} plan={plan} setPlan={setPlan} onSimulate={simulateConcept} forceDemo={forceDemo} />}
+        {tab === "studio" && <CampaignStudio intel={intel} brief={brief} setBrief={setBrief} plan={plan} setPlan={setPlan} onSimulate={simulateConcept} opts={{ forceDemo, model, country: analysis?.country ?? country }} />}
         {tab === "sim" && <Simulator config={sim} setConfig={setSim} />}
         {tab === "lab" && <HeadlineLab intel={intel} />}
       </main>

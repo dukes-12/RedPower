@@ -1,7 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { z } from "zod";
-import { CAMPAIGN_RULES, COMPANY_RULES, campaignPrompt } from "./prompts";
+import { DEFAULT_MODEL, isModelId, type ModelId } from "./models";
+import { CAMPAIGN_RULES, COMPANY_RULES, campaignPrompt, countryResearch, countryRules } from "./prompts";
 import {
   type CampaignBrief,
   type CampaignPlan,
@@ -11,8 +12,26 @@ import {
   type Source,
 } from "./schemas";
 
-const MODEL = process.env.REDPOWER_MODEL || "claude-opus-5-5";
+const ENV_MODEL = process.env.REDPOWER_MODEL;
+const MODEL: ModelId = isModelId(ENV_MODEL) ? ENV_MODEL : DEFAULT_MODEL;
 const FALLBACK_BETA = "server-side-fallback-2026-07-01";
+
+/** Modèle demandé par l'utilisateur, limité à la liste autorisée. */
+export function resolveModel(requested: unknown): ModelId {
+  return isModelId(requested) ? requested : MODEL;
+}
+
+/** Repli serveur en cas de refus : non proposé pour Haiku. */
+function fallbackParams(model: ModelId) {
+  return model === "claude-haiku-5-5" ? {} : { betas: [FALLBACK_BETA], fallbacks: "default" as const };
+}
+
+/** La recherche web à filtrage dynamique n'existe que sur Opus et Sonnet ; Haiku et Fable utilisent la version de base. */
+function webSearchTool(model: ModelId): Anthropic.Beta.BetaToolUnion {
+  return model === "claude-opus-5-5" || model === "claude-sonnet-5-5"
+    ? { type: "web_search_20260209", name: "web_search", max_uses: 8 }
+    : { type: "web_search_20250305", name: "web_search", max_uses: 8 };
+}
 
 export function hasApiKey(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
@@ -39,7 +58,7 @@ Rédige des notes de recherche factuelles et denses, en français, en citant les
  * Étape 1 : recherche web temps réel (outil serveur web_search).
  * Retourne des notes en texte libre + les sources consultées.
  */
-async function research(company: string, emit: Emit): Promise<{ notes: string; sources: Source[] }> {
+async function research(company: string, model: ModelId, country: string, emit: Emit): Promise<{ notes: string; sources: Source[] }> {
   const anthropic = getClient();
   const messages: Anthropic.Beta.BetaMessageParam[] = [
     {
@@ -47,7 +66,7 @@ async function research(company: string, emit: Emit): Promise<{ notes: string; s
       content: `Entreprise à analyser : « ${company} ».
 Aujourd'hui nous sommes le ${new Date().toISOString().slice(0, 10)}.
 Si le nom est ambigu, choisis l'entreprise la plus connue et précise-le.
-Termine par une section "Reddit" listant les subreddits pertinents (avec taille approximative) et une section "Budget" avec tes estimations chiffrées.`,
+Termine par une section "Reddit" listant les subreddits pertinents (avec taille approximative) et une section "Budget" avec tes estimations chiffrées.${countryResearch(country)}`,
     },
   ];
   const sources = new Map<string, Source>();
@@ -56,13 +75,12 @@ Termine par une section "Reddit" listant les subreddits pertinents (avec taille 
   // Boucle pour gérer pause_turn : une recherche longue peut être mise en pause côté serveur.
   for (let turn = 0; turn < 4; turn++) {
     const stream = anthropic.beta.messages.stream({
-      model: MODEL,
+      model,
       max_tokens: 32000,
-      betas: [FALLBACK_BETA],
-      fallbacks: "default",
+      ...fallbackParams(model),
       system: RESEARCH_SYSTEM,
       output_config: { effort: "medium" },
-      tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 8 }],
+      tools: [webSearchTool(model)],
       messages,
     });
 
@@ -102,13 +120,12 @@ Termine par une section "Reddit" listant les subreddits pertinents (avec taille 
 }
 
 /** Étape de structuration : transforme du texte en JSON validé par un schéma Zod. */
-async function structure<T extends z.ZodType>(schema: T, system: string, prompt: string): Promise<z.infer<T>> {
+async function structure<T extends z.ZodType>(model: ModelId, schema: T, system: string, prompt: string): Promise<z.infer<T>> {
   const anthropic = getClient();
   const response = await anthropic.beta.messages.parse({
-    model: MODEL,
+    model,
     max_tokens: 32000,
-    betas: [FALLBACK_BETA],
-    fallbacks: "default",
+    ...fallbackParams(model),
     system,
     output_config: { effort: "low", format: betaZodOutputFormat(schema) },
     messages: [{ role: "user", content: prompt }],
@@ -119,22 +136,28 @@ async function structure<T extends z.ZodType>(schema: T, system: string, prompt:
   return response.parsed_output as z.infer<T>;
 }
 
-export async function analyzeCompanyLive(company: string, emit: Emit): Promise<{ intel: CompanyIntel; sources: Source[] }> {
+export async function analyzeCompanyLive(
+  company: string,
+  opts: { model: ModelId; country: string },
+  emit: Emit,
+): Promise<{ intel: CompanyIntel; sources: Source[] }> {
   emit({ type: "stage", label: "Lancement de la recherche web…" });
-  const { notes, sources } = await research(company, emit);
+  const { notes, sources } = await research(company, opts.model, opts.country, emit);
   emit({ type: "stage", label: "Synthèse du profil, du budget et des communautés…" });
   const intel = await structure(
+    opts.model,
     CompanyIntelSchema,
-    COMPANY_RULES,
+    `${COMPANY_RULES}\n${countryRules(opts.country)}`,
     `Entreprise : ${company}\n\nNotes de recherche :\n${notes}`,
   );
   return { intel, sources };
 }
 
-export async function generateCampaignLive(brief: CampaignBrief, intel: CompanyIntel | null, emit: Emit): Promise<CampaignPlan> {
+export async function generateCampaignLive(brief: CampaignBrief, intel: CompanyIntel | null, model: ModelId, emit: Emit): Promise<CampaignPlan> {
   emit({ type: "stage", label: "Analyse du brief et de l'audience…" });
   emit({ type: "stage", label: "Génération des concepts, headlines et ciblages…" });
   return structure(
+    model,
     CampaignPlanSchema,
     CAMPAIGN_RULES,
     campaignPrompt(brief, intel),

@@ -1,3 +1,4 @@
+import { countryInfo } from "./countries";
 import type { CampaignBrief, CompanyIntel } from "./schemas";
 
 /** Consignes partagées par la version serveur (API) et la version artifact (claude.ai). */
@@ -34,6 +35,7 @@ export function campaignPrompt(brief: CampaignBrief, intel: CompanyIntel | null)
         keywords: intel.keywords.map((k) => k.term),
         subreddits: intel.subreddits.map((s) => ({ name: s.name, tone: s.tone, risk: s.risk })),
         interests: intel.interests,
+        countryInsight: intel.countryInsight,
       })}`
     : "Aucune fiche entreprise : déduis le contexte du brief.";
 
@@ -44,4 +46,22 @@ Objectif imposé : ${brief.objective === "auto" ? "à toi de choisir" : brief.ob
 Budget mensuel : ${brief.monthlyBudget} USD
 Ton souhaité : ${brief.tone}
 Zone géographique / langue : ${brief.geo}`;
+}
+
+/** Consigne pour l'encart pays : vide si aucun pays visé. */
+export function countryRules(code: string): string {
+  const c = countryInfo(code);
+  if (!c.code) return "- countryInsight : null (aucun pays visé).";
+  return `- countryInsight (obligatoire) : pays visé = ${c.label} (langue : ${c.lang}). Décris comment la marque est perçue DANS CE PAYS :
+  présence commerciale, notoriété, image et réputation locales (y compris controverses ou bad buzz connus), sentiment,
+  3 à 5 différences concrètes avec le reste du monde (offre, prix, concurrence locale, culture, réglementation publicitaire),
+  concurrents locaux, subreddits nationaux ou dans la langue du pays, et conseils d'adaptation du ton des annonces.
+  Si la marque n'est pas présente dans ce pays, dis-le (presence = "absente") et explique ce que cela change.`;
+}
+
+/** Consigne à ajouter à la recherche web quand un pays est visé. */
+export function countryResearch(code: string): string {
+  const c = countryInfo(code);
+  if (!c.code) return "";
+  return `\nPays visé : ${c.label}. Fais aussi des recherches spécifiques à ce pays (presse locale, avis, présence commerciale, prix locaux, concurrents locaux, discussions sur les subreddits du pays) et termine par une section "Perception en ${c.label}".`;
 }

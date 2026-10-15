@@ -13,6 +13,8 @@ Tapez le nom d'une entreprise → RedPower fait une recherche web en temps réel
 | 📈 **Simulateur** | Impressions, reach, fréquence, clics, conversions, CPM/CPC/CPA, ROAS, avec fourchette pessimiste / optimiste. Modèle : benchmarks par objectif et secteur, reach à rendements décroissants, fatigue créative, phase d'apprentissage. Répartition par communauté, recommandations automatiques et **comparateur multi-plateformes**. |
 | 🧪 **Headline Lab** | « Reddit Vibe Check » : score d'authenticité en direct (jargon, clickbait, majuscules, spécificité, ton humain…), variantes en un clic, exemples avant / après. |
 
+Sous la barre de recherche, deux réglages : **le modèle Claude** (Opus 5.5 par défaut, Fable 5.1, Sonnet 5.5 ou Haiku 5.5), utilisé pour l'analyse et pour le Studio campagne, et **le pays visé**, qui ajoute à la fiche un encart sur la perception de la marque dans ce pays (présence, notoriété, image, différences avec le reste du monde, concurrents et subreddits locaux, conseils d'adaptation) et préremplit le marché du Studio.
+
 Les éléments sont reliés entre eux : cocher des subreddits alimente le simulateur, cliquer un objectif ou une idée crée un brief, et « Simuler ce concept » transfère objectif, budget et ciblage dans le simulateur.
 
 ## Démarrage
@@ -23,7 +25,7 @@ cp .env.example .env.local   # puis renseignez ANTHROPIC_API_KEY
 npm run dev                  # http://localhost:3000
 ```
 
-Sans clé API, l'app tourne en **mode démo** : données simulées mais déterministes, clairement étiquetées. Avec une clé, l'analyse utilise Claude (`claude-opus-5-5` par défaut, modifiable via `REDPOWER_MODEL`) avec l'outil de recherche web côté serveur, puis une sortie structurée validée par Zod.
+Sans clé API, l'app tourne en **mode démo** : données simulées mais déterministes, clairement étiquetées. Avec une clé, l'analyse utilise le modèle Claude choisi dans l'interface (défaut du serveur modifiable via `REDPOWER_MODEL`) avec l'outil de recherche web côté serveur, puis une sortie structurée validée par Zod.
 
 ## Version claude.ai (artifact)
 

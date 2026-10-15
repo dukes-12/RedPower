@@ -1,6 +1,6 @@
 "use client";
 import { transport, type ResultMode } from "@/lib/transport";
-import { REDDIT_OBJECTIVES, type CampaignBrief, type CampaignConcept, type CampaignPlan, type CompanyIntel } from "@/lib/schemas";
+import { REDDIT_OBJECTIVES, type AnalysisOptions, type CampaignBrief, type CampaignConcept, type CampaignPlan, type CompanyIntel } from "@/lib/schemas";
 import { fmtMoney } from "@/lib/simulator";
 import { useState } from "react";
 import { RedditAdPreview } from "./RedditAdPreview";
@@ -24,7 +24,7 @@ export function CampaignStudio({
   plan,
   setPlan,
   onSimulate,
-  forceDemo,
+  opts,
 }: {
   intel: CompanyIntel | null;
   brief: CampaignBrief;
@@ -32,7 +32,7 @@ export function CampaignStudio({
   plan: { data: CampaignPlan; mode: ResultMode } | null;
   setPlan: (p: { data: CampaignPlan; mode: ResultMode } | null) => void;
   onSimulate: (c: CampaignConcept, budget: number) => void;
-  forceDemo: boolean;
+  opts: AnalysisOptions;
 }) {
   const [stages, setStages] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -43,7 +43,7 @@ export function CampaignStudio({
     setError(null);
     setStages([]);
     try {
-      const res = await transport().generateCampaign(brief, intel, forceDemo, { onStage: (s) => setStages((p) => (p[p.length - 1] === s ? p : [...p, s])) });
+      const res = await transport().generateCampaign(brief, intel, opts, { onStage: (s) => setStages((p) => (p[p.length - 1] === s ? p : [...p, s])) });
       setPlan({ data: res.data, mode: res.mode });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");

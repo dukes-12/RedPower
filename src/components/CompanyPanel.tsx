@@ -1,6 +1,6 @@
 "use client";
 import { fmtMoney, fmtNum } from "@/lib/simulator";
-import type { CompanyIntel, Source } from "@/lib/schemas";
+import type { CompanyIntel, CountryInsight, Source } from "@/lib/schemas";
 import { useMemo, useState } from "react";
 import { CopyButton, Gauge, Meter, Section, Stat, StatusLine, hostname } from "./ui";
 
@@ -73,6 +73,8 @@ export function CompanyPanel({
           ))}
         </ul>
       </section>
+
+      {intel.countryInsight && <CountryCard insight={intel.countryInsight} />}
 
       {/* Budget */}
       <Section title="Budget potentiel" subtitle={`Confiance : ${intel.budget.confidence}`}>
@@ -275,5 +277,85 @@ export function CompanyPanel({
         )}
       </Section>
     </div>
+  );
+}
+
+const PRESENCE: Record<CountryInsight["presence"], { level: "good" | "info" | "warning" | "critical"; text: string }> = {
+  forte: { level: "good", text: "Présence forte" },
+  moyenne: { level: "info", text: "Présence moyenne" },
+  faible: { level: "warning", text: "Présence faible" },
+  absente: { level: "critical", text: "Absente du pays" },
+};
+const SENTIMENT: Record<CountryInsight["sentiment"], { level: "good" | "info" | "warning" | "critical"; text: string }> = {
+  positif: { level: "good", text: "Image positive" },
+  mitigé: { level: "warning", text: "Image mitigée" },
+  négatif: { level: "critical", text: "Image négative" },
+  inconnu: { level: "info", text: "Image peu documentée" },
+};
+const PILL = { good: "text-good", info: "text-info", warning: "text-warning", critical: "text-critical" };
+const ICON = { good: "✓", info: "i", warning: "!", critical: "✕" };
+
+function Pill({ s }: { s: { level: keyof typeof PILL; text: string } }) {
+  return (
+    <span className={`chip text-xs font-medium ${PILL[s.level]}`}>
+      <span aria-hidden>{ICON[s.level]}</span> {s.text}
+    </span>
+  );
+}
+
+function CountryCard({ insight: c }: { insight: CountryInsight }) {
+  return (
+    <section className="card border-accent/40 p-5 lg:col-span-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="label !text-accent-ink">Pays visé</div>
+          <h3 className="mt-0.5 text-lg font-bold">Perception en {c.country}</h3>
+          <p className="mt-1 text-sm text-ink-2">{c.awareness}</p>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <Pill s={PRESENCE[c.presence] ?? PRESENCE.moyenne} />
+          <Pill s={SENTIMENT[c.sentiment] ?? SENTIMENT.inconnu} />
+        </div>
+      </div>
+      <p className="mt-3 max-w-4xl text-[15px] leading-relaxed">{c.perception}</p>
+      <div className="mt-4 grid grid-cols-1 gap-5 md:grid-cols-3">
+        <div className="min-w-0">
+          <div className="label mb-2">Différences avec le reste du monde</div>
+          <ul className="space-y-1.5 text-sm text-ink-2">
+            {c.differences.map((d) => (
+              <li key={d} className="flex gap-2"><span className="text-muted">≠</span>{d}</li>
+            ))}
+          </ul>
+        </div>
+        <div className="min-w-0">
+          <div className="label mb-2">Adapter les annonces</div>
+          <ul className="space-y-1.5 text-sm text-ink-2">
+            {c.adaptationTips.map((d) => (
+              <li key={d} className="flex gap-2"><span className="text-accent-ink">→</span>{d}</li>
+            ))}
+          </ul>
+        </div>
+        <div className="min-w-0 space-y-3">
+          <div>
+            <div className="label mb-1.5">Concurrents locaux</div>
+            <div className="flex flex-wrap gap-1.5">
+              {c.localCompetitors.map((x) => (
+                <span key={x} className="chip text-xs">{x}</span>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="label mb-1.5">Subreddits du pays</div>
+            <div className="flex flex-wrap gap-1.5">
+              {c.localSubreddits.map((x) => (
+                <a key={x} href={`https://www.reddit.com/r/${x}`} target="_blank" rel="noreferrer" className="chip text-xs hover:border-accent">
+                  r/{x}
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
