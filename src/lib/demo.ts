@@ -3,7 +3,7 @@
  * Tout est déterministe (même nom → même résultat) et explicitement étiqueté "démo" dans l'UI.
  */
 import { countryInfo } from "./countries";
-import type { CampaignBrief, CampaignConcept, CampaignPlan, CompanyIntel, RedditObjective, Subreddit } from "./schemas";
+import type { CountryInsight, CampaignBrief, CampaignConcept, CampaignPlan, CompanyIntel, RedditObjective, Subreddit } from "./schemas";
 
 interface Archetype {
   industry: string;
@@ -132,7 +132,7 @@ function archetypeFor(name: string): Archetype {
 
 const cap = (s: string) => s.trim().replace(/\b\w/g, (c) => c.toUpperCase());
 
-export function demoCompany(rawName: string, countryCode = ""): CompanyIntel {
+export function demoCompany(rawName: string, countryCodes: string[] = []): CompanyIntel {
   const name = cap(rawName);
   const a = archetypeFor(rawName);
   const h = hash(rawName.toLowerCase());
@@ -197,7 +197,7 @@ export function demoCompany(rawName: string, countryCode = ""): CompanyIntel {
       strengths: ["Communautés de niche très qualifiées", "CPM inférieurs à Meta et LinkedIn", "Discussions organiques existantes sur la catégorie"],
       watchouts: ["Communautés allergiques au ton corporate", "Commentaires publics sous les pubs : prévoir une modération active"],
     },
-    countryInsight: demoCountry(name, countryCode, a, h),
+    countryInsights: countryCodes.map((code, i) => demoCountry(name, code, a, h >>> i)),
     keyTakeaways: [
       `Audience très présente sur r/${a.subreddits[0][0]} et r/${a.subreddits[1][0]} : commencer par ces deux communautés (démo).`,
       `Budget test réaliste : ${tiers.lo.toLocaleString("fr-FR")}–${tiers.hi.toLocaleString("fr-FR")} $/mois, soit une petite part du paid social (démo).`,
@@ -227,8 +227,7 @@ const LOCAL_SUBS: Record<string, string[]> = {
   NL: ["thenetherlands", "geldzaken", "Netherlands"],
 };
 
-function demoCountry(name: string, code: string, a: Archetype, h: number): CompanyIntel["countryInsight"] {
-  if (!code) return null;
+function demoCountry(name: string, code: string, a: Archetype, h: number): CountryInsight {
   const c = countryInfo(code);
   const presence = (["forte", "moyenne", "faible"] as const)[(h >>> 3) % 3];
   return {
@@ -250,6 +249,12 @@ function demoCountry(name: string, code: string, a: Archetype, h: number): Compa
       "Mentionner la disponibilité locale (livraison, support, prix en devise locale)",
       "Cibler les subreddits nationaux en plus des communautés thématiques",
     ],
+    objectives: [
+      { objective: presence === "forte" ? `Défendre sa part de marché en ${c.label}` : `Gagner en notoriété en ${c.label}`, rationale: "Démo : dépend de la maturité de la marque sur ce marché." },
+      { objective: "Générer des essais via les communautés locales", rationale: "Démo : les subreddits nationaux sont moins saturés en publicité." },
+    ],
+    opportunityScore: 45 + ((h >>> 7) % 45),
+    recommendedMonthlyBudget: 1500 + ((h >>> 9) % 8) * 500,
   };
 }
 

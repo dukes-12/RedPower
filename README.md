@@ -15,7 +15,7 @@ Tapez le nom d'une entreprise → RedPower fait une recherche web en temps réel
 
 Un **parcours guidé** (Analyser → Campagnes → Simuler) relie les outils, mais chacun reste accessible seul, y compris le Headline Lab. La fiche s'ouvre sur un résumé **« En bref »** (3 constats et l'action n°1), et chaque donnée porte un **badge de fiabilité** (Vérifié, Source web, Claude, Estimation, Démo).
 
-Réglages : **le modèle Claude** de l'analyse (Haiku 5.5 par défaut) et celui des campagnes (Sonnet 5.5 par défaut), modifiables séparément parmi Opus 5.5, Fable 5.1, Sonnet 5.5 et Haiku 5.5, et **le pays visé**, qui ajoute à la fiche un encart sur la perception de la marque dans ce pays (présence, notoriété, image, différences avec le reste du monde, concurrents et subreddits locaux, conseils d'adaptation) et préremplit le marché du Studio.
+Réglages : **le modèle Claude** de l'analyse (Haiku 5.5 par défaut) et celui des campagnes (Sonnet 5.5 par défaut), modifiables séparément parmi Opus 5.5, Fable 5.1, Sonnet 5.5 et Haiku 5.5, et **les pays visés** (jusqu'à 5). Les objectifs, idées, résumé, budget et communautés de la fiche sont alors orientés vers ces marchés, et chaque pays a son encart : perception, notoriété, différences avec le reste du monde, concurrents et subreddits locaux, objectifs propres, score d'opportunité et budget conseillé. Avec plusieurs pays, un comparatif indique le marché le plus prometteur. Les pays préremplissent le marché du Studio.
 
 Les éléments sont reliés entre eux : cocher des subreddits alimente le simulateur, cliquer un objectif ou une idée crée un brief, et « Simuler ce concept » transfère objectif, budget et ciblage dans le simulateur.
 

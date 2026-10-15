@@ -24,3 +24,17 @@ export const COUNTRIES = [
 export function countryInfo(code: string | undefined) {
   return COUNTRIES.find((c) => c.code === code) ?? COUNTRIES[0];
 }
+
+/** Nombre maximum de pays par analyse (temps de réponse et taille de la fiche). */
+export const MAX_COUNTRIES = 5;
+
+/** Nettoie une liste de codes pays : valides, sans doublon, sans « Monde », au plus MAX_COUNTRIES. */
+export function normalizeCountries(input: unknown): string[] {
+  const list = Array.isArray(input) ? input : typeof input === "string" && input ? [input] : [];
+  const valid = list.map((c) => countryInfo(String(c)).code).filter((c): c is Exclude<typeof c, ""> => c !== "");
+  return [...new Set(valid)].slice(0, MAX_COUNTRIES);
+}
+
+export function countriesLabel(codes: string[]): string {
+  return codes.map((c) => countryInfo(c).label).join(", ");
+}

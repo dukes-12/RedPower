@@ -107,7 +107,7 @@ export const claudeTransport: Transport = {
     const sample = await getSample();
     if (!sample || opts.forceDemo || declined) {
       await demoStages(h, ["Recherche (simulée)…", "Estimation du budget…", "Cartographie des communautés Reddit…"]);
-      return { data: demoCompany(company, opts.country), mode: "demo", sources: [] };
+      return { data: demoCompany(company, opts.countries), mode: "demo", sources: [] };
     }
     h.onStage?.(`Claude ${modelInfo(opts.model).label} analyse l'entreprise… (une autorisation peut vous être demandée)`);
     const prompt = `Tu es un analyste senior en stratégie média et intelligence économique, spécialiste de Reddit Ads.
@@ -116,14 +116,14 @@ Si le nom est ambigu, choisis l'entreprise la plus connue et précise-le dans le
 Quand une donnée n'est pas publique (budget marketing notamment), estime-la avec un raisonnement explicite (ratio marketing/CA du secteur et du stade de l'entreprise).
 
 ${COMPANY_RULES.replace("Tu convertis des notes de recherche en fiche entreprise structurée pour un planneur Reddit Ads. ", "")}
-${countryRules(opts.country)}
+${countryRules(opts.countries)}
 
 Réponds uniquement avec un objet JSON conforme à ce JSON Schema :
 ${schemaText(__RP_SCHEMAS__.company)}`;
     try {
       const raw = await sample.json(prompt, { onText: progress(h, "Claude rédige la fiche"), signal, ...modelOptions(opts.model) });
       h.onStage?.("Vérification de la fiche…");
-      return { data: coerce(__RP_SCHEMAS__.company, raw, demoCompany(company, opts.country)) as CompanyIntel, mode: "knowledge", sources: [] };
+      return { data: coerce(__RP_SCHEMAS__.company, raw, demoCompany(company, opts.countries)) as CompanyIntel, mode: "knowledge", sources: [] };
     } catch (e) {
       if ((e as SampleError)?.code === "cancelled") throw Object.assign(new Error("cancelled"), { name: "AbortError" });
       throw toError(e);

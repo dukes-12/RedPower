@@ -1,5 +1,6 @@
 "use client";
 import { fmtMoney, fmtNum } from "@/lib/simulator";
+import { insightsOf } from "@/lib/intel";
 import type { CompanyIntel, CountryInsight, Source } from "@/lib/schemas";
 import { useMemo, useState } from "react";
 import { Icon, type IconName } from "./icons";
@@ -28,6 +29,8 @@ export function CompanyPanel({
     [intel.keywords, intent],
   );
   const base = baseReliability(mode);
+  const markets = insightsOf(intel);
+  const marketLabel = markets.map((m) => m.country).join(", ");
   const takeaways = intel.keyTakeaways?.length ? intel.keyTakeaways.slice(0, 3) : fallbackTakeaways(intel);
   const nextAction = intel.nextAction || intel.quickWins[0] || "";
   const totalReach = intel.subreddits
@@ -107,7 +110,7 @@ export function CompanyPanel({
         </ul>
       </section>
 
-      {intel.countryInsight && <CountryCard insight={intel.countryInsight} base={base} />}
+      {markets.length > 0 && <MarketsCard key={`${intel.name}-${marketLabel}`} insights={markets} base={base} onGoCampaign={onGoCampaign} />}
 
       {/* Budget */}
       <Section title="Budget potentiel" subtitle={`Confiance : ${intel.budget.confidence}`} badge={<Badge kind={mode === "demo" ? "demo" : "estimate"} />}>
@@ -126,7 +129,7 @@ export function CompanyPanel({
       </Section>
 
       {/* Objectifs */}
-      <Section title="Objectifs actuels" subtitle="Déduits des signaux récents" badge={<Badge kind={base} />}>
+      <Section title="Objectifs actuels" subtitle={markets.length ? `Orientés vers : ${marketLabel}` : "Déduits des signaux récents"} badge={<Badge kind={base} />}>
         <ul className="space-y-3">
           {intel.currentObjectives.map((o) => (
             <li key={o.objective} className="group">
@@ -336,58 +339,140 @@ function Pill({ s }: { s: { level: keyof typeof PILL; text: string } }) {
   );
 }
 
-function CountryCard({ insight: c, base }: { insight: CountryInsight; base: "verified" | "sourced" | "claude" | "estimate" | "demo" }) {
+function MarketsCard({
+  insights,
+  base,
+  onGoCampaign,
+}: {
+  insights: CountryInsight[];
+  base: "verified" | "sourced" | "claude" | "estimate" | "demo";
+  onGoCampaign: (brief?: string) => void;
+}) {
+  const [active, setActive] = useState(0);
+  const c = insights[Math.min(active, insights.length - 1)];
+  const multi = insights.length > 1;
+  const best = multi ? insights.reduce((a, b) => ((b.opportunityScore ?? 0) > (a.opportunityScore ?? 0) ? b : a)) : null;
+
   return (
     <section className="card p-5 lg:col-span-3">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="label !text-accent-ink">Pays visé</div>
-          <div className="mt-0.5 flex flex-wrap items-center gap-2">
-            <h3 className="text-lg font-bold">Perception en {c.country}</h3>
-            <Badge kind={base} />
-          </div>
-          <p className="mt-1 text-sm text-ink-2">{c.awareness}</p>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          <Pill s={PRESENCE[c.presence] ?? PRESENCE.moyenne} />
-          <Pill s={SENTIMENT[c.sentiment] ?? SENTIMENT.inconnu} />
-        </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-accent-ink"><Icon name="globe" size={18} /></span>
+        <h3 className="text-lg font-bold">{multi ? `${insights.length} marchés visés` : `Perception en ${c.country}`}</h3>
+        <Badge kind={base} />
       </div>
-      <p className="mt-3 max-w-4xl text-[15px] leading-relaxed">{c.perception}</p>
-      <div className="mt-4 grid grid-cols-1 gap-5 md:grid-cols-3">
-        <div className="min-w-0">
-          <div className="label mb-2">Différences avec le reste du monde</div>
-          <ul className="space-y-1.5 text-sm text-ink-2">
-            {c.differences.map((d) => (
-              <li key={d} className="flex gap-2"><span className="num text-muted">≠</span>{d}</li>
-            ))}
-          </ul>
+
+      {multi && (
+        <>
+          <p className="mt-1 text-sm text-ink-2">
+            Marché le plus prometteur : <span className="font-semibold text-ink">{best?.country}</span>. Sélectionnez un pays pour voir le détail.
+          </p>
+          <div role="tablist" aria-label="Pays" className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            {insights.map((m, i) => {
+              const on = i === active;
+              return (
+                <button
+                  key={m.country}
+                  role="tab"
+                  aria-selected={on}
+                  onClick={() => setActive(i)}
+                  className={`rounded-lg border p-3 text-left transition ${on ? "border-accent bg-accent-soft" : "border-line hover:border-line-strong"}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm font-semibold">{m.country}</span>
+                    {m === best && <span className="label !text-accent-ink">Top</span>}
+                  </div>
+                  {typeof m.opportunityScore === "number" && (
+                    <div className="mt-2">
+                      <div className="mb-1 flex items-baseline justify-between">
+                        <span className="text-[11px] text-muted">Opportunité</span>
+                        <span className="num text-xs font-semibold">{Math.round(m.opportunityScore)}</span>
+                      </div>
+                      <Meter value={m.opportunityScore} />
+                    </div>
+                  )}
+                  {typeof m.recommendedMonthlyBudget === "number" && (
+                    <div className="num mt-2 text-xs text-ink-2">{fmtMoney(m.recommendedMonthlyBudget)}/mois</div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      <div className={multi ? "mt-5 border-t border-line pt-5" : "mt-1"} role={multi ? "tabpanel" : undefined}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            {multi && <h4 className="text-base font-bold" style={{ fontFamily: "var(--font-display)" }}>Perception en {c.country}</h4>}
+            <p className="mt-1 text-sm text-ink-2">{c.awareness}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Pill s={PRESENCE[c.presence] ?? PRESENCE.moyenne} />
+            <Pill s={SENTIMENT[c.sentiment] ?? SENTIMENT.inconnu} />
+            {!multi && typeof c.recommendedMonthlyBudget === "number" && (
+              <span className="chip num text-xs">{fmtMoney(c.recommendedMonthlyBudget)}/mois</span>
+            )}
+          </div>
         </div>
-        <div className="min-w-0">
-          <div className="label mb-2">Adapter les annonces</div>
-          <ul className="space-y-1.5 text-sm text-ink-2">
-            {c.adaptationTips.map((d) => (
-              <li key={d} className="flex gap-2"><Icon name="arrowRight" size={14} className="mt-0.5 shrink-0 text-accent-ink" />{d}</li>
-            ))}
-          </ul>
-        </div>
-        <div className="min-w-0 space-y-3">
-          <div>
-            <div className="label mb-1.5">Concurrents locaux</div>
-            <div className="flex flex-wrap gap-1.5">
-              {c.localCompetitors.map((x) => (
-                <span key={x} className="chip text-xs">{x}</span>
+        <p className="mt-3 max-w-4xl text-[15px] leading-relaxed">{c.perception}</p>
+
+        {c.objectives?.length > 0 && (
+          <div className="mt-4">
+            <div className="label mb-2">Objectifs recommandés en {c.country}</div>
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+              {c.objectives.map((o) => (
+                <div key={o.objective} className="flex flex-col justify-between gap-2 rounded-lg bg-surface-2 p-3">
+                  <div>
+                    <div className="text-sm font-semibold">{o.objective}</div>
+                    <div className="mt-0.5 text-xs text-ink-2">{o.rationale}</div>
+                  </div>
+                  <button
+                    className="inline-flex items-center gap-1 self-start text-xs font-semibold text-accent-ink hover:underline"
+                    onClick={() => onGoCampaign(`${o.objective} (marché : ${c.country})`)}
+                  >
+                    Campagne <Icon name="arrowRight" size={12} />
+                  </button>
+                </div>
               ))}
             </div>
           </div>
-          <div>
-            <div className="label mb-1.5">Subreddits du pays</div>
-            <div className="flex flex-wrap gap-1.5">
-              {c.localSubreddits.map((x) => (
-                <a key={x} href={`https://www.reddit.com/r/${x}`} target="_blank" rel="noreferrer" className="chip text-xs hover:border-accent">
-                  r/{x}
-                </a>
+        )}
+
+        <div className="mt-4 grid grid-cols-1 gap-5 md:grid-cols-3">
+          <div className="min-w-0">
+            <div className="label mb-2">Différences avec le reste du monde</div>
+            <ul className="space-y-1.5 text-sm text-ink-2">
+              {c.differences.map((d) => (
+                <li key={d} className="flex gap-2"><span className="num text-muted">≠</span>{d}</li>
               ))}
+            </ul>
+          </div>
+          <div className="min-w-0">
+            <div className="label mb-2">Adapter les annonces</div>
+            <ul className="space-y-1.5 text-sm text-ink-2">
+              {c.adaptationTips.map((d) => (
+                <li key={d} className="flex gap-2"><Icon name="arrowRight" size={14} className="mt-0.5 shrink-0 text-accent-ink" />{d}</li>
+              ))}
+            </ul>
+          </div>
+          <div className="min-w-0 space-y-3">
+            <div>
+              <div className="label mb-1.5">Concurrents locaux</div>
+              <div className="flex flex-wrap gap-1.5">
+                {c.localCompetitors.map((x) => (
+                  <span key={x} className="chip text-xs">{x}</span>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="label mb-1.5">Subreddits du pays</div>
+              <div className="flex flex-wrap gap-1.5">
+                {c.localSubreddits.map((x) => (
+                  <a key={x} href={`https://www.reddit.com/r/${x}`} target="_blank" rel="noreferrer" className="chip text-xs hover:border-accent">
+                    r/{x}
+                  </a>
+                ))}
+              </div>
             </div>
           </div>
         </div>

@@ -58,7 +58,7 @@ Rédige des notes de recherche factuelles et denses, en français, en citant les
  * Étape 1 : recherche web temps réel (outil serveur web_search).
  * Retourne des notes en texte libre + les sources consultées.
  */
-async function research(company: string, model: ModelId, country: string, emit: Emit): Promise<{ notes: string; sources: Source[] }> {
+async function research(company: string, model: ModelId, countries: string[], emit: Emit): Promise<{ notes: string; sources: Source[] }> {
   const anthropic = getClient();
   const messages: Anthropic.Beta.BetaMessageParam[] = [
     {
@@ -66,7 +66,7 @@ async function research(company: string, model: ModelId, country: string, emit: 
       content: `Entreprise à analyser : « ${company} ».
 Aujourd'hui nous sommes le ${new Date().toISOString().slice(0, 10)}.
 Si le nom est ambigu, choisis l'entreprise la plus connue et précise-le.
-Termine par une section "Reddit" listant les subreddits pertinents (avec taille approximative) et une section "Budget" avec tes estimations chiffrées.${countryResearch(country)}`,
+Termine par une section "Reddit" listant les subreddits pertinents (avec taille approximative) et une section "Budget" avec tes estimations chiffrées.${countryResearch(countries)}`,
     },
   ];
   const sources = new Map<string, Source>();
@@ -138,16 +138,16 @@ async function structure<T extends z.ZodType>(model: ModelId, schema: T, system:
 
 export async function analyzeCompanyLive(
   company: string,
-  opts: { model: ModelId; country: string },
+  opts: { model: ModelId; countries: string[] },
   emit: Emit,
 ): Promise<{ intel: CompanyIntel; sources: Source[] }> {
   emit({ type: "stage", label: "Lancement de la recherche web…" });
-  const { notes, sources } = await research(company, opts.model, opts.country, emit);
+  const { notes, sources } = await research(company, opts.model, opts.countries, emit);
   emit({ type: "stage", label: "Synthèse du profil, du budget et des communautés…" });
   const intel = await structure(
     opts.model,
     CompanyIntelSchema,
-    `${COMPANY_RULES}\n${countryRules(opts.country)}`,
+    `${COMPANY_RULES}\n${countryRules(opts.countries)}`,
     `Entreprise : ${company}\n\nNotes de recherche :\n${notes}`,
   );
   return { intel, sources };

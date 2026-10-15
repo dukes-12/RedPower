@@ -7,7 +7,8 @@ import { ModelSelect } from "@/components/ModelSelect";
 import { Simulator, type SimConfig } from "@/components/Simulator";
 import { Empty, Progress } from "@/components/ui";
 import { loadJSON, saveJSON } from "@/lib/client";
-import { COUNTRIES, countryInfo } from "@/lib/countries";
+import { countriesLabel, countryInfo, normalizeCountries } from "@/lib/countries";
+import { CountryPicker } from "@/components/CountryPicker";
 import { DEFAULT_ANALYSIS_MODEL, DEFAULT_CAMPAIGN_MODEL, isModelId, modelInfo } from "@/lib/models";
 import { PLATFORMS, REDDIT_OBJECTIVE_TO_GOAL } from "@/lib/platforms";
 import type { CampaignBrief, CampaignConcept, CampaignPlan, CompanyIntel, Source } from "@/lib/schemas";
@@ -37,16 +38,21 @@ interface Analysis {
   mode: ResultMode;
   at: number;
   model?: string;
+  countries?: string[];
+  /** Ancien format (un seul pays). */
   country?: string;
 }
+
+/** Pays d'une analyse, quel que soit son format. */
+const countriesOf = (a: Analysis) => normalizeCountries(a.countries ?? a.country);
 
 interface Settings {
   analysisModel: string;
   campaignModel: string;
-  country: string;
+  countries: string[];
 }
 
-const DEFAULT_SETTINGS: Settings = { analysisModel: DEFAULT_ANALYSIS_MODEL, campaignModel: DEFAULT_CAMPAIGN_MODEL, country: "" };
+const DEFAULT_SETTINGS: Settings = { analysisModel: DEFAULT_ANALYSIS_MODEL, campaignModel: DEFAULT_CAMPAIGN_MODEL, countries: [] };
 const DEFAULT_SIM: SimConfig = { goal: "traffic", monthlyBudget: 3000, durationDays: 30, creativeQuality: 1, conversionValue: 0, communities: [] };
 const DEFAULT_BRIEF: CampaignBrief = { brief: "", objective: "auto", monthlyBudget: 3000, tone: "Authentique & transparent", geo: "France, français" };
 
@@ -73,11 +79,11 @@ export default function Home() {
   useEffect(() => {
     transport().status().then(setStatus);
     setHistory(loadJSON<Analysis[]>("rp-history", []));
-    const saved = loadJSON<Partial<Settings>>("rp-settings-v2", {});
+    const saved = loadJSON<Partial<Settings> & { country?: string }>("rp-settings-v2", {});
     setSettings({
       analysisModel: isModelId(saved.analysisModel) ? saved.analysisModel : DEFAULT_ANALYSIS_MODEL,
       campaignModel: isModelId(saved.campaignModel) ? saved.campaignModel : DEFAULT_CAMPAIGN_MODEL,
-      country: countryInfo(saved.country).code,
+      countries: normalizeCountries(saved.countries ?? saved.country),
     });
     setTheme((document.documentElement.dataset.theme as "light" | "dark" | undefined) ?? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
   }, []);
@@ -113,8 +119,9 @@ export default function Home() {
     setSelected(top);
     const budget = Math.round((a.intel.budget.recommendedRedditMonthlyLow + a.intel.budget.recommendedRedditMonthlyHigh) / 2 / 100) * 100 || 3000;
     setSim((s) => ({ ...s, monthlyBudget: budget, industry: a.intel.industry, label: a.intel.name, communities: toCommunities(a.intel, top) }));
-    const c = countryInfo(a.country);
-    setBrief((b) => ({ ...b, monthlyBudget: budget, geo: c.code ? `${c.label}, ${c.lang}` : b.geo }));
+    const codes = countriesOf(a);
+    const geo = codes.map((code) => `${countryInfo(code).label} (${countryInfo(code).lang})`).join(", ");
+    setBrief((b) => ({ ...b, monthlyBudget: budget, geo: codes.length ? geo : b.geo }));
     setPlan(null);
   }
 
@@ -124,7 +131,7 @@ export default function Home() {
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
-    const { analysisModel: model, country } = settings;
+    const { analysisModel: model, countries } = settings;
     setQuery(company);
     setTab("intel");
     setLoading(true);
@@ -134,13 +141,13 @@ export default function Home() {
     try {
       const res = await transport().analyzeCompany(
         company,
-        { forceDemo, model, country },
+        { forceDemo, model, countries },
         { onStage: (s) => setStages((p) => (p[p.length - 1] === s ? p : [...p, s])), onSource: (s) => setLiveSources((p) => [...p, s]) },
         ctrl.signal,
       );
-      const a: Analysis = { intel: res.data, sources: res.sources, mode: res.mode, at: Date.now(), model, country };
+      const a: Analysis = { intel: res.data, sources: res.sources, mode: res.mode, at: Date.now(), model, countries };
       applyAnalysis(a);
-      const nextHistory = [a, ...history.filter((h) => !(h.intel.name.toLowerCase() === a.intel.name.toLowerCase() && (h.country ?? "") === country))].slice(0, 8);
+      const nextHistory = [a, ...history.filter((h) => !(h.intel.name.toLowerCase() === a.intel.name.toLowerCase() && countriesOf(h).join() === countries.join()))].slice(0, 8);
       setHistory(nextHistory);
       saveJSON("rp-history", nextHistory);
     } catch (e) {
@@ -256,26 +263,14 @@ export default function Home() {
         </form>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:max-w-3xl">
           <ModelSelect id="rp-model" value={settings.analysisModel} onChange={(v) => updateSettings({ analysisModel: v })} defaultId={DEFAULT_ANALYSIS_MODEL} label="Modèle pour l'analyse" />
-          <label className="block text-sm" htmlFor="rp-country">
-            <span className="label">Pays visé</span>
-            <select id="rp-country" className="input mt-1 !py-1.5 text-sm" value={settings.country} onChange={(e) => updateSettings({ country: e.target.value })}>
-              {COUNTRIES.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-            <span className="mt-1 block text-xs text-muted">
-              {settings.country ? `Ajoute un encart sur la perception de la marque en ${countryInfo(settings.country).label}.` : "Choisissez un pays pour voir comment la marque y est perçue."}
-            </span>
-          </label>
+          <CountryPicker value={settings.countries} onChange={(codes) => updateSettings({ countries: codes })} />
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           <span className="label mr-1">{history.length ? "Récents" : "Essayez"}</span>
           {history.length
             ? history.map((h) => (
                 <button
-                  key={`${h.intel.name}-${h.country ?? ""}`}
+                  key={`${h.intel.name}-${countriesOf(h).join("+")}`}
                   className="chip text-xs"
                   onClick={() => {
                     applyAnalysis(h);
@@ -284,7 +279,7 @@ export default function Home() {
                   }}
                 >
                   {h.intel.name}
-                  {h.country ? <span className="num text-[11px] text-muted">{h.country}</span> : null}
+                  {countriesOf(h).length ? <span className="num text-[11px] text-muted">{countriesOf(h).join("+")}</span> : null}
                 </button>
               ))
             : EXAMPLES.map((n) => (
@@ -357,7 +352,7 @@ export default function Home() {
             <span className="ml-auto hidden shrink-0 text-right text-[11px] leading-tight text-muted lg:block">
               {analysis.mode === "demo" ? "Données démo" : analysis.mode === "knowledge" ? "Analyse Claude" : "Analyse live"}
               {analysis.mode !== "demo" && analysis.model ? ` ${modelInfo(analysis.model).label}` : ""}
-              {analysis.country ? ` · ${countryInfo(analysis.country).label}` : ""}
+              {countriesOf(analysis).length ? ` · ${countriesLabel(countriesOf(analysis))}` : ""}
               <br />
               {new Date(analysis.at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
             </span>
@@ -399,7 +394,7 @@ export default function Home() {
             plan={plan}
             setPlan={setPlan}
             onSimulate={simulateConcept}
-            opts={{ forceDemo, country: analysis?.country ?? settings.country }}
+            opts={{ forceDemo, countries: analysis ? countriesOf(analysis) : settings.countries }}
             model={settings.campaignModel}
             setModel={(v) => updateSettings({ campaignModel: v })}
             onNext={() => go("sim")}

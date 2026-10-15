@@ -36,6 +36,11 @@ export const CountryInsightSchema = z.object({
   localCompetitors: z.array(z.string()).describe("Concurrents locaux ou plus forts dans ce pays"),
   localSubreddits: z.array(z.string()).describe("Subreddits du pays ou de sa langue pertinents, sans le préfixe r/"),
   adaptationTips: z.array(z.string()).describe("2 à 4 conseils pour adapter le ton et les annonces à ce pays"),
+  objectives: z
+    .array(z.object({ objective: z.string(), rationale: z.string().describe("Pourquoi cet objectif dans ce pays (signal local, maturité du marché...)") }))
+    .describe("2 à 3 objectifs publicitaires recommandés pour CE pays"),
+  opportunityScore: z.number().describe("Potentiel Reddit Ads de ce marché pour la marque, 0 à 100"),
+  recommendedMonthlyBudget: z.number().describe("Budget Reddit mensuel conseillé pour ce pays, en USD"),
 });
 export type CountryInsight = z.infer<typeof CountryInsightSchema>;
 
@@ -103,11 +108,14 @@ export const CompanyIntelSchema = z.object({
   quickWins: z.array(z.string()).describe("3 à 5 idées d'actions Reddit immédiates et créatives"),
   keyTakeaways: z.array(z.string()).describe("En bref : exactement 3 constats clés pour un media buyer, une phrase courte chacun"),
   nextAction: z.string().describe("L'action recommandée en premier, une phrase à l'impératif"),
-  countryInsight: CountryInsightSchema.nullable().describe("Encart pays : null si aucun pays visé n'est demandé"),
+  countryInsights: z.array(CountryInsightSchema).describe("Un encart par pays visé, dans l'ordre demandé ; liste vide si aucun pays"),
 });
 export type CompanyIntel = Omit<z.infer<typeof CompanyIntelSchema>, "subreddits"> & {
   subreddits: Subreddit[];
+  /** Ancien format (un seul pays), conservé pour relire l'historique. */
+  countryInsight?: CountryInsight | null;
 };
+
 
 export const AdSchema = z.object({
   headline: z.string().describe("Titre du post sponsorisé (Reddit: 300 caractères max, idéalement < 100)"),
@@ -163,8 +171,8 @@ export type Source = z.infer<typeof Source>;
 export interface AnalysisOptions {
   /** Identifiant du modèle Claude (voir lib/models.ts). */
   model: string;
-  /** Code pays visé (voir lib/countries.ts), "" = aucun. */
-  country: string;
+  /** Codes des pays visés (voir lib/countries.ts), vide = aucun. */
+  countries: string[];
   forceDemo?: boolean;
 }
 
