@@ -3,7 +3,7 @@
  * Tout est déterministe (même nom → même résultat) et explicitement étiqueté "démo" dans l'UI.
  */
 import { countryInfo } from "./countries";
-import { PREP_QUESTIONS, type ClientType } from "./prep";
+import { BUSINESS_QUESTIONS, PREP_QUESTIONS, type ClientType } from "./prep";
 import type { PrepBrief, CountryInsight, CampaignBrief, CampaignConcept, CampaignPlan, CompanyIntel, RedditObjective, Subreddit } from "./schemas";
 
 interface Archetype {
@@ -291,13 +291,7 @@ function demoPrep(name: string, type: ClientType, a: Archetype, sizeTier: number
       `Les communautés r/${a.subreddits[0][0]} et r/${a.subreddits[1][0]} parlent déjà de la catégorie (démo).`,
       "Le budget social est concentré sur Meta, avec une envie de diversifier (démo).",
     ],
-    discoveryQuestions: [
-      "Quels sont vos objectifs prioritaires pour les 6 prochains mois ?",
-      "Comment répartissez-vous aujourd'hui votre budget entre les plateformes ?",
-      "Quels indicateurs utilisez-vous pour juger une campagne réussie ?",
-      type === "agency" ? "Quels clients cherchent de nouveaux leviers d'audience en ce moment ?" : "Avez-vous déjà observé des discussions sur votre marque sur Reddit ?",
-      "Qui valide les tests de nouvelles plateformes, et à quel horizon ?",
-    ],
+    businessQuestions: BUSINESS_QUESTIONS[type],
     pitchAngle: type === "agency" ? "Proposer à l'agence un pilote Reddit sur un ou deux clients à forte affinité, avec un cadre de mesure partagé (démo)." : `Un test Reddit centré sur r/${a.subreddits[0][0]}, ton transparent, objectif trafic puis conversion (démo).`,
     priority: sizeTier === 2 ? "top" : "standard",
     priorityRationale: sizeTier === 2 ? "Taille et budget estimés élevés (démo)." : "Potentiel moyen à confirmer en discovery (démo).",

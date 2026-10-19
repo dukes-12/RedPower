@@ -1,5 +1,6 @@
 "use client";
-import { CALL_FLOW, CLIENT_TYPES, PREP_QUESTIONS, PREP_RESOURCES, type ClientType } from "@/lib/prep";
+import { BUSINESS_QUESTIONS, CALL_FLOW, CLIENT_TYPES, PREP_QUESTIONS, PREP_RESOURCES, THEME_LABELS, type ClientType } from "@/lib/prep";
+import { BusinessQuestions, answerKey, askedKey } from "./BusinessQuestions";
 import type { PrepBrief } from "@/lib/schemas";
 import { Icon, type IconName } from "./icons";
 import { Badge, CopyButton, Empty, Section, type Reliability } from "./ui";
@@ -41,6 +42,8 @@ export function CallBrief({
   }
   const answers = new Map(brief.answers.map((a) => [a.id, a]));
   const toVerify = brief.answers.filter((a) => a.status !== "répondu").length;
+  const tailored = Boolean(brief.businessQuestions?.length);
+  const business = tailored ? brief.businessQuestions : BUSINESS_QUESTIONS[clientType];
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -61,7 +64,7 @@ export function CallBrief({
             <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${PRIORITY[brief.priority].cls}`} title={brief.priorityRationale}>
               {PRIORITY[brief.priority].text}
             </span>
-            <CopyButton text={toMarkdown(name, clientType, brief, notes)} label="Copier le brief" />
+            <CopyButton text={toMarkdown(name, clientType, brief, business, notes)} label="Copier le brief" />
           </div>
         </div>
         <ol className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -140,16 +143,6 @@ export function CallBrief({
             ))}
           </ul>
         </Section>
-        <Section title="Questions de discovery" action={<CopyButton text={brief.discoveryQuestions.map((q) => `- ${q}`).join("\n")} />}>
-          <ul className="space-y-2">
-            {brief.discoveryQuestions.map((q) => (
-              <li key={q} className="flex gap-2 text-sm text-ink-2">
-                <Icon name="message" size={14} className="mt-0.5 shrink-0" />
-                {q}
-              </li>
-            ))}
-          </ul>
-        </Section>
         <Section title="Tailoring & next steps">
           <ul className="space-y-2">
             {brief.nextSteps.map((s) => (
@@ -175,11 +168,13 @@ export function CallBrief({
           </div>
         </section>
       </div>
+
+      <BusinessQuestions questions={business} clientType={clientType} tailored={tailored} notes={notes} onNote={onNote} />
     </div>
   );
 }
 
-function toMarkdown(name: string, type: ClientType, b: PrepBrief, notes: Record<string, string>) {
+function toMarkdown(name: string, type: ClientType, b: PrepBrief, business: PrepBrief["businessQuestions"], notes: Record<string, string>) {
   const answers = new Map(b.answers.map((a) => [a.id, a]));
   const lines = [
     `# Brief d'appel · ${name} (${CLIENT_TYPES.find((c) => c.id === type)?.label})`,
@@ -195,6 +190,12 @@ function toMarkdown(name: string, type: ClientType, b: PrepBrief, notes: Record<
     if (notes[q.id]) lines.push(`   Notes : ${notes[q.id]}`);
   });
   lines.push("", "## Stratégie à pitcher", b.pitchAngle, "", "## Hypothèses à confirmer", ...b.hypotheses.map((h) => `- ${h}`));
-  lines.push("", "## Questions de discovery", ...b.discoveryQuestions.map((q) => `- ${q}`), "", "## Tailoring & next steps", ...b.nextSteps.map((s) => `- ${s}`));
+  lines.push("", "## Questions business");
+  business.forEach((q, i) => {
+    const done = notes[askedKey(i)] === "1" ? "x" : " ";
+    lines.push(`- [${done}] **${THEME_LABELS[type][q.theme]}** · ${q.question}`);
+    if (notes[answerKey(i)]) lines.push(`  Réponse : ${notes[answerKey(i)]}`);
+  });
+  lines.push("", "## Tailoring & next steps", ...b.nextSteps.map((s) => `- ${s}`));
   return lines.join("\n");
 }

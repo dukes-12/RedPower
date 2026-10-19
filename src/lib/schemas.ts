@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { REDDIT_CTAS, REDDIT_OBJECTIVES, type RedditObjective } from "./constants";
-import type { ClientType } from "./prep";
+import { BUSINESS_THEMES, type ClientType } from "./prep";
 
 export { REDDIT_CTAS, REDDIT_OBJECTIVES, type RedditObjective } from "./constants";
 
@@ -57,7 +57,15 @@ export const PrepBriefSchema = z.object({
     )
     .describe("Une réponse par question de préparation, dans l'ordre"),
   hypotheses: z.array(z.string()).describe("3 à 5 hypothèses issues de la prep, à confirmer pendant la discovery"),
-  discoveryQuestions: z.array(z.string()).describe("5 à 7 questions ouvertes à poser pendant l'appel"),
+  businessQuestions: z
+    .array(
+      z.object({
+        theme: z.enum(BUSINESS_THEMES),
+        question: z.string().describe("Question ouverte, adaptée à ce client"),
+        why: z.string().describe("Ce que la réponse permet de décider, en une phrase"),
+      }),
+    )
+    .describe("12 à 14 questions business à poser pendant l'appel : 2 par thème"),
   pitchAngle: z.string().describe("La stratégie Reddit à pitcher, en 2-3 phrases"),
   priority: z.enum(["top", "standard", "faible"]).describe("Top = compte stratégique qui demande un pitch plus fort"),
   priorityRationale: z.string(),

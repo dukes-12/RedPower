@@ -1,6 +1,6 @@
 import { countryInfo } from "./countries";
 import { insightsOf } from "./intel";
-import { PREP_QUESTIONS, type ClientType } from "./prep";
+import { BUSINESS_THEMES, PREP_QUESTIONS, THEME_LABELS, type ClientType } from "./prep";
 import type { CampaignBrief, CompanyIntel } from "./schemas";
 
 /** Consignes partagées par la version serveur (API) et la version artifact (claude.ai). */
@@ -97,6 +97,9 @@ ${questions}
   donne les indices publics s'il y en a, mets status = "à vérifier" et indique précisément où vérifier (Salesforce / SFDC, page du site, LinkedIn...).
   Ne présente jamais une supposition comme un fait. Respecte l'équilibre prep / discovery : ce qui ne peut pas être établi en prep
   devient une hypothèse à confirmer ou une question de discovery.
+  businessQuestions : 2 questions ouvertes par thème (${BUSINESS_THEMES.map((t) => `${t} = ${THEME_LABELS[type][t]}`).join(", ")}),
+  adaptées à ${type === "agency" ? "cette agence (son portefeuille clients, ses volumes, son process)" : "cette marque (ses produits, sa saisonnalité, ses plateformes actuelles)"},
+  sans redemander ce que la prep a déjà établi ; pour chacune, "why" = ce que la réponse permet de décider.
   ${type === "agency" ? "Pour le siège, signale s'il faut vérifier que le pays fait partie des marchés où nous pouvons proposer nos services." : "Pour la saisonnalité, cite les temps forts des 3 à 6 prochains mois."}`;
 }
 
