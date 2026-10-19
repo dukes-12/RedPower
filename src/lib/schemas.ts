@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { REDDIT_CTAS, REDDIT_OBJECTIVES, type RedditObjective } from "./constants";
+import type { ClientType } from "./prep";
 
 export { REDDIT_CTAS, REDDIT_OBJECTIVES, type RedditObjective } from "./constants";
 
@@ -43,6 +44,26 @@ export const CountryInsightSchema = z.object({
   recommendedMonthlyBudget: z.number().describe("Budget Reddit mensuel conseillé pour ce pays, en USD"),
 });
 export type CountryInsight = z.infer<typeof CountryInsightSchema>;
+
+export const PrepBriefSchema = z.object({
+  answers: z
+    .array(
+      z.object({
+        id: z.string().describe("Identifiant de la question fourni dans la consigne (q1, q2...)"),
+        answer: z.string().describe("Réponse concise ; si l'info n'est pas publique, dire ce qu'on sait et ce qu'il reste à vérifier"),
+        status: z.enum(["répondu", "partiel", "à vérifier"]),
+        howToVerify: z.string().describe("Où et comment obtenir ou confirmer la réponse (SFDC, page précise du site, LinkedIn...)"),
+      }),
+    )
+    .describe("Une réponse par question de préparation, dans l'ordre"),
+  hypotheses: z.array(z.string()).describe("3 à 5 hypothèses issues de la prep, à confirmer pendant la discovery"),
+  discoveryQuestions: z.array(z.string()).describe("5 à 7 questions ouvertes à poser pendant l'appel"),
+  pitchAngle: z.string().describe("La stratégie Reddit à pitcher, en 2-3 phrases"),
+  priority: z.enum(["top", "standard", "faible"]).describe("Top = compte stratégique qui demande un pitch plus fort"),
+  priorityRationale: z.string(),
+  nextSteps: z.array(z.string()).describe("Tailoring & next steps : 2 à 4 suites concrètes à proposer en fin d'appel"),
+});
+export type PrepBrief = z.infer<typeof PrepBriefSchema>;
 
 export const CompanyIntelSchema = z.object({
   name: z.string(),
@@ -109,12 +130,15 @@ export const CompanyIntelSchema = z.object({
   keyTakeaways: z.array(z.string()).describe("En bref : exactement 3 constats clés pour un media buyer, une phrase courte chacun"),
   nextAction: z.string().describe("L'action recommandée en premier, une phrase à l'impératif"),
   countryInsights: z.array(CountryInsightSchema).describe("Un encart par pays visé, dans l'ordre demandé ; liste vide si aucun pays"),
+  prepBrief: PrepBriefSchema.describe("Brief de préparation de l'appel de découverte"),
 });
 export type CompanyIntel = Omit<z.infer<typeof CompanyIntelSchema>, "subreddits"> & {
   subreddits: Subreddit[];
   /** Ancien format (un seul pays), conservé pour relire l'historique. */
   countryInsight?: CountryInsight | null;
 };
+// Les analyses antérieures au brief d'appel n'ont pas de prepBrief.
+export type StoredIntel = Omit<CompanyIntel, "prepBrief"> & { prepBrief?: PrepBrief };
 
 
 export const AdSchema = z.object({
@@ -173,6 +197,8 @@ export interface AnalysisOptions {
   model: string;
   /** Codes des pays visés (voir lib/countries.ts), vide = aucun. */
   countries: string[];
+  /** Annonceur direct ou agence : change les questions du brief d'appel et la lecture de la fiche. */
+  clientType: ClientType;
   forceDemo?: boolean;
 }
 

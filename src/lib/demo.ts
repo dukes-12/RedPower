@@ -3,7 +3,8 @@
  * Tout est déterministe (même nom → même résultat) et explicitement étiqueté "démo" dans l'UI.
  */
 import { countryInfo } from "./countries";
-import type { CountryInsight, CampaignBrief, CampaignConcept, CampaignPlan, CompanyIntel, RedditObjective, Subreddit } from "./schemas";
+import { PREP_QUESTIONS, type ClientType } from "./prep";
+import type { PrepBrief, CountryInsight, CampaignBrief, CampaignConcept, CampaignPlan, CompanyIntel, RedditObjective, Subreddit } from "./schemas";
 
 interface Archetype {
   industry: string;
@@ -132,7 +133,7 @@ function archetypeFor(name: string): Archetype {
 
 const cap = (s: string) => s.trim().replace(/\b\w/g, (c) => c.toUpperCase());
 
-export function demoCompany(rawName: string, countryCodes: string[] = []): CompanyIntel {
+export function demoCompany(rawName: string, countryCodes: string[] = [], clientType: ClientType = "direct"): CompanyIntel {
   const name = cap(rawName);
   const a = archetypeFor(rawName);
   const h = hash(rawName.toLowerCase());
@@ -198,6 +199,7 @@ export function demoCompany(rawName: string, countryCodes: string[] = []): Compa
       watchouts: ["Communautés allergiques au ton corporate", "Commentaires publics sous les pubs : prévoir une modération active"],
     },
     countryInsights: countryCodes.map((code, i) => demoCountry(name, code, a, h >>> i)),
+    prepBrief: demoPrep(name, clientType, a, sizeTier),
     keyTakeaways: [
       `Audience très présente sur r/${a.subreddits[0][0]} et r/${a.subreddits[1][0]} : commencer par ces deux communautés (démo).`,
       `Budget test réaliste : ${tiers.lo.toLocaleString("fr-FR")}–${tiers.hi.toLocaleString("fr-FR")} $/mois, soit une petite part du paid social (démo).`,
@@ -255,6 +257,51 @@ function demoCountry(name: string, code: string, a: Archetype, h: number): Count
     ],
     opportunityScore: 45 + ((h >>> 7) % 45),
     recommendedMonthlyBudget: 1500 + ((h >>> 9) % 8) * 500,
+  };
+}
+
+function demoPrep(name: string, type: ClientType, a: Archetype, sizeTier: number): PrepBrief {
+  const demo: Record<ClientType, string[]> = {
+    direct: [
+      `${name} opère dans le secteur ${a.industry} (${a.businessModel}). (démo)`,
+      `Siège en France (démo). Offre : ${a.products.map((p) => p[0]).join(", ")}.`,
+      "Information interne : non disponible en prep.",
+      "Site organisé autour des offres et d'un blog ; publicités probables sur Meta et Google (démo).",
+      "Temps forts possibles : rentrée, Black Friday, fin d'année (démo).",
+      `Pitch possible : tester r/${a.subreddits[0][0]} avec un ton transparent. ${sizeTier === 2 ? "Compte important : prévoir un pitch renforcé." : ""}`,
+    ],
+    agency: [
+      `Agence de taille ${["petite", "moyenne", "grande"][sizeTier]}, plusieurs pôles (média, créa) selon le site (démo).`,
+      "Siège à Paris (démo) : pays à confirmer dans la liste des marchés couverts.",
+      "Information interne : non disponible en prep.",
+      "Services : stratégie média, social ads, création ; media mix orienté Meta et Google (démo).",
+      `Études de cas surtout dans le secteur ${a.industry} (démo).`,
+      `Clients à potentiel Reddit : marques ${a.industry.toLowerCase()} présentes sur r/${a.subreddits[0][0]} (démo).`,
+    ],
+  };
+  return {
+    answers: PREP_QUESTIONS[type].map((q, i) => ({
+      id: q.id,
+      answer: demo[type][i],
+      status: i === 2 ? "à vérifier" : i === 5 || i === 4 ? "partiel" : "répondu",
+      howToVerify: q.source,
+    })),
+    hypotheses: [
+      type === "agency" ? "L'agence n'a pas encore de pratique Reddit structurée (démo)." : "La marque n'a jamais testé Reddit Ads (démo).",
+      `Les communautés r/${a.subreddits[0][0]} et r/${a.subreddits[1][0]} parlent déjà de la catégorie (démo).`,
+      "Le budget social est concentré sur Meta, avec une envie de diversifier (démo).",
+    ],
+    discoveryQuestions: [
+      "Quels sont vos objectifs prioritaires pour les 6 prochains mois ?",
+      "Comment répartissez-vous aujourd'hui votre budget entre les plateformes ?",
+      "Quels indicateurs utilisez-vous pour juger une campagne réussie ?",
+      type === "agency" ? "Quels clients cherchent de nouveaux leviers d'audience en ce moment ?" : "Avez-vous déjà observé des discussions sur votre marque sur Reddit ?",
+      "Qui valide les tests de nouvelles plateformes, et à quel horizon ?",
+    ],
+    pitchAngle: type === "agency" ? "Proposer à l'agence un pilote Reddit sur un ou deux clients à forte affinité, avec un cadre de mesure partagé (démo)." : `Un test Reddit centré sur r/${a.subreddits[0][0]}, ton transparent, objectif trafic puis conversion (démo).`,
+    priority: sizeTier === 2 ? "top" : "standard",
+    priorityRationale: sizeTier === 2 ? "Taille et budget estimés élevés (démo)." : "Potentiel moyen à confirmer en discovery (démo).",
+    nextSteps: ["Envoyer un récapitulatif et une proposition de test", "Partager 2 études de cas du secteur", "Caler un point de suivi sous 2 semaines"],
   };
 }
 

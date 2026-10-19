@@ -1,6 +1,7 @@
 "use client";
 import { fmtMoney, fmtNum } from "@/lib/simulator";
 import { insightsOf } from "@/lib/intel";
+import type { ClientType } from "@/lib/prep";
 import type { CompanyIntel, CountryInsight, Source } from "@/lib/schemas";
 import { useMemo, useState } from "react";
 import { Icon, type IconName } from "./icons";
@@ -11,6 +12,7 @@ const INTENTS = ["toutes", "découverte", "considération", "achat", "problème"
 export function CompanyPanel({
   intel,
   mode,
+  clientType = "direct",
   sources,
   selected,
   onToggleSub,
@@ -18,6 +20,7 @@ export function CompanyPanel({
 }: {
   intel: CompanyIntel;
   mode: "live" | "knowledge" | "demo";
+  clientType?: ClientType;
   sources: Source[];
   selected: string[];
   onToggleSub: (name: string) => void;
@@ -29,6 +32,7 @@ export function CompanyPanel({
     [intel.keywords, intent],
   );
   const base = baseReliability(mode);
+  const agency = clientType === "agency";
   const markets = insightsOf(intel);
   const marketLabel = markets.map((m) => m.country).join(", ");
   const takeaways = intel.keyTakeaways?.length ? intel.keyTakeaways.slice(0, 3) : fallbackTakeaways(intel);
@@ -219,7 +223,7 @@ export function CompanyPanel({
       </Section>
 
       {/* Audiences */}
-      <Section title="Audiences cibles">
+      <Section title={agency ? "Clients & verticales" : "Audiences cibles"}>
         <ul className="space-y-3">
           {intel.targetAudiences.map((a) => (
             <li key={a.persona}>
@@ -262,7 +266,7 @@ export function CompanyPanel({
       </Section>
 
       {/* Produits & concurrents */}
-      <Section title="Produits & concurrents">
+      <Section title={agency ? "Services & agences concurrentes" : "Produits & concurrents"}>
         <ul className="space-y-2.5">
           {intel.products.map((p) => (
             <li key={p.name} className="text-sm">
@@ -272,7 +276,7 @@ export function CompanyPanel({
             </li>
           ))}
         </ul>
-        <div className="label mb-2 mt-5">Concurrents</div>
+        <div className="label mb-2 mt-5">{agency ? "Agences concurrentes" : "Concurrents"}</div>
         <ul className="space-y-1.5">
           {intel.competitors.map((c) => (
             <li key={c.name} className="text-sm">

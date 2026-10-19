@@ -2,7 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import type { z } from "zod";
 import { DEFAULT_MODEL, isModelId, type ModelId } from "./models";
-import { CAMPAIGN_RULES, COMPANY_RULES, campaignPrompt, countryResearch, countryRules } from "./prompts";
+import type { ClientType } from "./prep";
+import { CAMPAIGN_RULES, COMPANY_RULES, campaignPrompt, clientResearch, clientRules, countryResearch, countryRules } from "./prompts";
 import {
   type CampaignBrief,
   type CampaignPlan,
@@ -58,7 +59,7 @@ Rédige des notes de recherche factuelles et denses, en français, en citant les
  * Étape 1 : recherche web temps réel (outil serveur web_search).
  * Retourne des notes en texte libre + les sources consultées.
  */
-async function research(company: string, model: ModelId, countries: string[], emit: Emit): Promise<{ notes: string; sources: Source[] }> {
+async function research(company: string, model: ModelId, countries: string[], clientType: ClientType, emit: Emit): Promise<{ notes: string; sources: Source[] }> {
   const anthropic = getClient();
   const messages: Anthropic.Beta.BetaMessageParam[] = [
     {
@@ -66,7 +67,7 @@ async function research(company: string, model: ModelId, countries: string[], em
       content: `Entreprise à analyser : « ${company} ».
 Aujourd'hui nous sommes le ${new Date().toISOString().slice(0, 10)}.
 Si le nom est ambigu, choisis l'entreprise la plus connue et précise-le.
-Termine par une section "Reddit" listant les subreddits pertinents (avec taille approximative) et une section "Budget" avec tes estimations chiffrées.${countryResearch(countries)}`,
+Termine par une section "Reddit" listant les subreddits pertinents (avec taille approximative) et une section "Budget" avec tes estimations chiffrées.${countryResearch(countries)}${clientResearch(clientType)}`,
     },
   ];
   const sources = new Map<string, Source>();
@@ -138,29 +139,29 @@ async function structure<T extends z.ZodType>(model: ModelId, schema: T, system:
 
 export async function analyzeCompanyLive(
   company: string,
-  opts: { model: ModelId; countries: string[] },
+  opts: { model: ModelId; countries: string[]; clientType: ClientType },
   emit: Emit,
 ): Promise<{ intel: CompanyIntel; sources: Source[] }> {
   emit({ type: "stage", label: "Lancement de la recherche web…" });
-  const { notes, sources } = await research(company, opts.model, opts.countries, emit);
+  const { notes, sources } = await research(company, opts.model, opts.countries, opts.clientType, emit);
   emit({ type: "stage", label: "Synthèse du profil, du budget et des communautés…" });
   const intel = await structure(
     opts.model,
     CompanyIntelSchema,
-    `${COMPANY_RULES}\n${countryRules(opts.countries)}`,
-    `Entreprise : ${company}\n\nNotes de recherche :\n${notes}`,
+    `${COMPANY_RULES}\n${countryRules(opts.countries)}\n${clientRules(opts.clientType)}`,
+    `${opts.clientType === "agency" ? "Agence" : "Entreprise"} : ${company}\n\nNotes de recherche :\n${notes}`,
   );
   return { intel, sources };
 }
 
-export async function generateCampaignLive(brief: CampaignBrief, intel: CompanyIntel | null, model: ModelId, emit: Emit): Promise<CampaignPlan> {
+export async function generateCampaignLive(brief: CampaignBrief, intel: CompanyIntel | null, model: ModelId, clientType: ClientType, emit: Emit): Promise<CampaignPlan> {
   emit({ type: "stage", label: "Analyse du brief et de l'audience…" });
   emit({ type: "stage", label: "Génération des concepts, headlines et ciblages…" });
   return structure(
     model,
     CampaignPlanSchema,
     CAMPAIGN_RULES,
-    campaignPrompt(brief, intel),
+    campaignPrompt(brief, intel, clientType),
   );
 }
 

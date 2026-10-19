@@ -5,13 +5,15 @@ import { HeadlineLab } from "@/components/HeadlineLab";
 import { Icon, type IconName } from "@/components/icons";
 import { ModelSelect } from "@/components/ModelSelect";
 import { Simulator, type SimConfig } from "@/components/Simulator";
-import { Empty, Progress } from "@/components/ui";
+import { CallBrief } from "@/components/CallBrief";
+import { Empty, Progress, baseReliability } from "@/components/ui";
+import { CLIENT_TYPES, isClientType, type ClientType } from "@/lib/prep";
 import { loadJSON, saveJSON } from "@/lib/client";
 import { countriesLabel, countryInfo, normalizeCountries } from "@/lib/countries";
 import { CountryPicker } from "@/components/CountryPicker";
 import { DEFAULT_ANALYSIS_MODEL, DEFAULT_CAMPAIGN_MODEL, isModelId, modelInfo } from "@/lib/models";
 import { PLATFORMS, REDDIT_OBJECTIVE_TO_GOAL } from "@/lib/platforms";
-import type { CampaignBrief, CampaignConcept, CampaignPlan, CompanyIntel, Source } from "@/lib/schemas";
+import type { CampaignBrief, CampaignConcept, CampaignPlan, CompanyIntel, Source, StoredIntel } from "@/lib/schemas";
 import { transport, type ResultMode, type Status } from "@/lib/transport";
 import { useEffect, useRef, useState } from "react";
 
@@ -39,6 +41,9 @@ interface Analysis {
   at: number;
   model?: string;
   countries?: string[];
+  clientType?: ClientType;
+  /** Notes de l'utilisateur par question du brief d'appel. */
+  notes?: Record<string, string>;
   /** Ancien format (un seul pays). */
   country?: string;
 }
@@ -50,9 +55,10 @@ interface Settings {
   analysisModel: string;
   campaignModel: string;
   countries: string[];
+  clientType: ClientType;
 }
 
-const DEFAULT_SETTINGS: Settings = { analysisModel: DEFAULT_ANALYSIS_MODEL, campaignModel: DEFAULT_CAMPAIGN_MODEL, countries: [] };
+const DEFAULT_SETTINGS: Settings = { analysisModel: DEFAULT_ANALYSIS_MODEL, campaignModel: DEFAULT_CAMPAIGN_MODEL, countries: [], clientType: "direct" };
 const DEFAULT_SIM: SimConfig = { goal: "traffic", monthlyBudget: 3000, durationDays: 30, creativeQuality: 1, conversionValue: 0, communities: [] };
 const DEFAULT_BRIEF: CampaignBrief = { brief: "", objective: "auto", monthlyBudget: 3000, tone: "Authentique & transparent", geo: "France, français" };
 
@@ -73,6 +79,7 @@ export default function Home() {
   const [status, setStatus] = useState<Status | null>(null);
   const [forceDemo, setForceDemo] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [intelView, setIntelView] = useState<"brief" | "fiche">("brief");
   const [theme, setTheme] = useState<"light" | "dark" | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -84,6 +91,7 @@ export default function Home() {
       analysisModel: isModelId(saved.analysisModel) ? saved.analysisModel : DEFAULT_ANALYSIS_MODEL,
       campaignModel: isModelId(saved.campaignModel) ? saved.campaignModel : DEFAULT_CAMPAIGN_MODEL,
       countries: normalizeCountries(saved.countries ?? saved.country),
+      clientType: isClientType(saved.clientType) ? saved.clientType : "direct",
     });
     setTheme((document.documentElement.dataset.theme as "light" | "dark" | undefined) ?? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
   }, []);
@@ -131,7 +139,7 @@ export default function Home() {
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
-    const { analysisModel: model, countries } = settings;
+    const { analysisModel: model, countries, clientType } = settings;
     setQuery(company);
     setTab("intel");
     setLoading(true);
@@ -141,13 +149,13 @@ export default function Home() {
     try {
       const res = await transport().analyzeCompany(
         company,
-        { forceDemo, model, countries },
+        { forceDemo, model, countries, clientType },
         { onStage: (s) => setStages((p) => (p[p.length - 1] === s ? p : [...p, s])), onSource: (s) => setLiveSources((p) => [...p, s]) },
         ctrl.signal,
       );
-      const a: Analysis = { intel: res.data, sources: res.sources, mode: res.mode, at: Date.now(), model, countries };
+      const a: Analysis = { intel: res.data, sources: res.sources, mode: res.mode, at: Date.now(), model, countries, clientType };
       applyAnalysis(a);
-      const nextHistory = [a, ...history.filter((h) => !(h.intel.name.toLowerCase() === a.intel.name.toLowerCase() && countriesOf(h).join() === countries.join()))].slice(0, 8);
+      const nextHistory = [a, ...history.filter((h) => !(h.intel.name.toLowerCase() === a.intel.name.toLowerCase() && countriesOf(h).join() === countries.join() && (h.clientType ?? "direct") === clientType))].slice(0, 8);
       setHistory(nextHistory);
       saveJSON("rp-history", nextHistory);
     } catch (e) {
@@ -155,6 +163,15 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function updateNote(id: string, text: string) {
+    if (!analysis) return;
+    const next = { ...analysis, notes: { ...analysis.notes, [id]: text } };
+    setAnalysis(next);
+    const nextHistory = history.map((h) => (h.at === analysis.at ? next : h));
+    setHistory(nextHistory);
+    saveJSON("rp-history", nextHistory);
   }
 
   function toggleSub(name: string) {
@@ -246,6 +263,28 @@ export default function Home() {
             </p>
           </div>
         )}
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <span className="label" id="rp-client-label">Type de client</span>
+          <div role="radiogroup" aria-labelledby="rp-client-label" className="inline-flex rounded-lg border border-line-strong bg-surface-2 p-0.5">
+            {CLIENT_TYPES.map((c) => {
+              const on = settings.clientType === c.id;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  title={c.hint}
+                  onClick={() => updateSettings({ clientType: c.id })}
+                  className={`rounded-md px-3 py-1.5 text-sm font-semibold transition ${on ? "bg-surface text-ink shadow-[0_0_0_1px_var(--border-strong)]" : "text-ink-2 hover:text-ink"}`}
+                >
+                  {c.label}
+                </button>
+              );
+            })}
+          </div>
+          <span className="text-xs text-muted">{CLIENT_TYPES.find((c) => c.id === settings.clientType)?.hint}</span>
+        </div>
         <form
           className="flex flex-col gap-2 sm:flex-row"
           onSubmit={(e) => {
@@ -255,7 +294,7 @@ export default function Home() {
         >
           <div className="relative flex-1">
             <Icon name="search" size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted" />
-            <input className="input !py-3 !pl-11 text-base" placeholder="Nom d'une entreprise : Notion, Alan, Michel et Augustin…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Entreprise" />
+            <input className="input !py-3 !pl-11 text-base" placeholder={settings.clientType === "agency" ? "Nom de l'agence : Publicis, Havas, Fred & Farid…" : "Nom de l'entreprise : Notion, Alan, Michel et Augustin…"} value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Entreprise" />
           </div>
           <button className="btn btn-primary justify-center !px-6 !py-3" disabled={loading || !query.trim()}>
             {loading ? "Analyse…" : "Analyser"}
@@ -270,7 +309,7 @@ export default function Home() {
           {history.length
             ? history.map((h) => (
                 <button
-                  key={`${h.intel.name}-${countriesOf(h).join("+")}`}
+                  key={`${h.intel.name}-${countriesOf(h).join("+")}-${h.clientType ?? "direct"}`}
                   className="chip text-xs"
                   onClick={() => {
                     applyAnalysis(h);
@@ -279,6 +318,7 @@ export default function Home() {
                   }}
                 >
                   {h.intel.name}
+                  {h.clientType === "agency" ? <span className="label !text-[9.5px]">Agence</span> : null}
                   {countriesOf(h).length ? <span className="num text-[11px] text-muted">{countriesOf(h).join("+")}</span> : null}
                 </button>
               ))
@@ -377,12 +417,41 @@ export default function Home() {
             />
           ) : intel ? (
             <>
-              <CompanyPanel intel={intel} mode={analysis!.mode} sources={analysis!.sources} selected={selected} onToggleSub={toggleSub} onGoCampaign={goCampaign} />
+              <div role="tablist" aria-label="Vue" className="mb-3 inline-flex rounded-lg border border-line-strong bg-surface-2 p-0.5">
+                {(
+                  [
+                    ["brief", "Brief d'appel", "message"],
+                    ["fiche", "Fiche complète", "layers"],
+                  ] as const
+                ).map(([id, label, icon]) => (
+                  <button
+                    key={id}
+                    role="tab"
+                    aria-selected={intelView === id}
+                    onClick={() => setIntelView(id)}
+                    className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold transition ${intelView === id ? "bg-surface text-ink shadow-[0_0_0_1px_var(--border-strong)]" : "text-ink-2 hover:text-ink"}`}
+                  >
+                    <Icon name={icon} size={14} /> {label}
+                  </button>
+                ))}
+              </div>
+              {intelView === "brief" ? (
+                <CallBrief
+                  name={intel.name}
+                  brief={(intel as StoredIntel).prepBrief}
+                  clientType={analysis!.clientType ?? "direct"}
+                  base={baseReliability(analysis!.mode)}
+                  notes={analysis!.notes ?? {}}
+                  onNote={updateNote}
+                />
+              ) : (
+                <CompanyPanel intel={intel} mode={analysis!.mode} clientType={analysis!.clientType ?? "direct"} sources={analysis!.sources} selected={selected} onToggleSub={toggleSub} onGoCampaign={goCampaign} />
+              )}
               <NextStep text="Étape suivante : transformer cette analyse en campagnes." cta="Créer les campagnes" onClick={() => go("studio")} />
             </>
           ) : (
-            <Empty title="Commencez par une entreprise">
-              La fiche s'affichera ici : résumé, identité, budget estimé, objectifs actuels, actualités, keywords par intention et communautés Reddit classées par pertinence.
+            <Empty title={settings.clientType === "agency" ? "Commencez par une agence" : "Commencez par une entreprise"}>
+              Vous obtiendrez un brief d'appel (les questions à résoudre avant l'appel, avec réponses et sources à vérifier) et la fiche complète : résumé, identité, budget estimé, objectifs actuels, actualités, keywords par intention et communautés Reddit classées par pertinence.
             </Empty>
           ))}
 
@@ -394,7 +463,7 @@ export default function Home() {
             plan={plan}
             setPlan={setPlan}
             onSimulate={simulateConcept}
-            opts={{ forceDemo, countries: analysis ? countriesOf(analysis) : settings.countries }}
+            opts={{ forceDemo, countries: analysis ? countriesOf(analysis) : settings.countries, clientType: analysis?.clientType ?? settings.clientType }}
             model={settings.campaignModel}
             setModel={(v) => updateSettings({ campaignModel: v })}
             onNext={() => go("sim")}

@@ -1,5 +1,6 @@
 import { countryInfo } from "./countries";
 import { insightsOf } from "./intel";
+import { PREP_QUESTIONS, type ClientType } from "./prep";
 import type { CampaignBrief, CompanyIntel } from "./schemas";
 
 /** Consignes partagées par la version serveur (API) et la version artifact (claude.ai). */
@@ -24,7 +25,7 @@ Règles :
 - Sois créatif : formats Conversation Ads, AMA, threads "on a lu vos critiques", easter eggs pour une communauté, etc.
 Écris en français (sauf les annonces si le marché est anglophone).`;
 
-export function campaignPrompt(brief: CampaignBrief, intel: CompanyIntel | null): string {
+export function campaignPrompt(brief: CampaignBrief, intel: CompanyIntel | null, clientType: ClientType = "direct"): string {
   const context = intel
     ? `Fiche entreprise (JSON) :\n${JSON.stringify({
         name: intel.name,
@@ -41,8 +42,12 @@ export function campaignPrompt(brief: CampaignBrief, intel: CompanyIntel | null)
       })}`
     : "Aucune fiche entreprise : déduis le contexte du brief.";
 
+  const agency =
+    clientType === "agency"
+      ? "\nType de client : AGENCE. Les concepts sont à proposer à l'agence pour ses clients (ou pour un pilote Reddit sur un client précis) : indique pour quel type de client chaque concept est pensé.\n"
+      : "";
   return `${context}
-
+${agency}
 Brief / besoin : ${brief.brief}
 Objectif imposé : ${brief.objective === "auto" ? "à toi de choisir" : brief.objective}
 Budget mensuel : ${brief.monthlyBudget} USD
@@ -71,4 +76,33 @@ export function countryResearch(codes: string[]): string {
   if (!codes.length) return "";
   const labels = codes.map((c) => countryInfo(c).label);
   return `\nPays visés : ${labels.join(", ")}. Fais aussi des recherches spécifiques à chaque pays (presse locale, avis, présence commerciale, prix locaux, concurrents locaux, discussions sur les subreddits du pays, objectifs et lancements locaux) et termine par une section "Perception par pays".`;
+}
+
+/** Consignes selon le type de client : lecture de la fiche + brief de préparation d'appel. */
+export function clientRules(type: ClientType): string {
+  const questions = PREP_QUESTIONS[type].map((q) => `  ${q.id}. ${q.question}`).join("\n");
+  const reading =
+    type === "agency"
+      ? `- Le client est une AGENCE (pas un annonceur). Lis la fiche du point de vue de l'agence :
+  products = ses services ; targetAudiences = ses types de clients et verticales ; competitors = agences concurrentes ;
+  subreddits et keywords = ceux qui serviraient les verticales de ses principaux clients ;
+  budget = volume média géré estimé et potentiel Reddit des comptes de l'agence ;
+  quickWins, keyTakeaways et nextAction = comment embarquer l'agence et quels clients pitcher en premier.`
+      : `- Le client est un ANNONCEUR DIRECT : la fiche porte sur la marque elle-même.`;
+  return `${reading}
+- prepBrief (obligatoire) : brief de préparation de l'appel de découverte. Le déroulé est Prep -> Discovery (confirmer les hypothèses) -> Tailoring & next steps.
+  answers : exactement une réponse par question ci-dessous, dans l'ordre, avec son id :
+${questions}
+  Les informations internes (inbound/outbound, campagnes passées avec Reddit, priorité du compte) ne sont pas publiques :
+  donne les indices publics s'il y en a, mets status = "à vérifier" et indique précisément où vérifier (Salesforce / SFDC, page du site, LinkedIn...).
+  Ne présente jamais une supposition comme un fait. Respecte l'équilibre prep / discovery : ce qui ne peut pas être établi en prep
+  devient une hypothèse à confirmer ou une question de discovery.
+  ${type === "agency" ? "Pour le siège, signale s'il faut vérifier que le pays fait partie des marchés où nous pouvons proposer nos services." : "Pour la saisonnalité, cite les temps forts des 3 à 6 prochains mois."}`;
+}
+
+/** Consigne à ajouter à la recherche web selon le type de client. */
+export function clientResearch(type: ClientType): string {
+  return type === "agency"
+    ? `\nLe client est une AGENCE : cherche sa taille et sa structure (bureaux, effectifs LinkedIn), son siège, ses services et son media mix, ses études de cas, ses clients connus (logos, gains de budget) et lesquels pourraient convenir à Reddit. Termine par une section "Préparation d'appel".`
+    : `\nPrépare aussi un appel de découverte : produits, localisation, structure du site, autres plateformes publicitaires utilisées (bibliothèques publicitaires), temps forts saisonniers à venir. Termine par une section "Préparation d'appel".`;
 }
